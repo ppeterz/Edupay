@@ -21,24 +21,7 @@ import {
 import { Loader2, CheckCircle2, Copy } from 'lucide-react';
 import type { Student } from '@/types';
 
-// ── Class options ────────────────────────────
-
-const CLASS_OPTIONS = [
-  'Nursery 1',
-  'Nursery 2',
-  'Primary 1',
-  'Primary 2',
-  'Primary 3',
-  'Primary 4',
-  'Primary 5',
-  'Primary 6',
-  'JSS 1',
-  'JSS 2',
-  'JSS 3',
-  'SS 1',
-  'SS 2',
-  'SS 3',
-];
+import { ALL_CLASSES } from '@/lib/constants';
 
 // ── Props ────────────────────────────────────
 
@@ -254,7 +237,7 @@ export function AddStudentForm({ onSuccess, onCancel }: AddStudentFormProps) {
             <SelectValue placeholder="Select class" />
           </SelectTrigger>
           <SelectContent>
-            {CLASS_OPTIONS.map((cls) => (
+            {ALL_CLASSES.map((cls) => (
               <SelectItem key={cls} value={cls}>
                 {cls}
               </SelectItem>

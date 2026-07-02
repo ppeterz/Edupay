@@ -1,38 +1,60 @@
 'use client';
 
 // ──────────────────────────────────────────────
-// EduPay — Student Detail Page (Placeholder)
+// EduPay — Student Detail Page
 // ──────────────────────────────────────────────
-// Full implementation (invoices, payment history) comes in Stage 4.
+// Shows student info, virtual account, balances, and all invoices.
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getFirebaseAuth } from '@/lib/firebase';
+import { useAuth } from '@/contexts/AuthContext';
+import { useInvoices } from '@/hooks/useInvoices';
+import { InvoiceCard } from '@/components/invoices/InvoiceCard';
+import { CreateInvoiceForm } from '@/components/invoices/CreateInvoiceForm';
+import { EditInvoiceForm } from '@/components/invoices/EditInvoiceForm';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, AlertCircle } from 'lucide-react';
+import {
+  ArrowLeft,
+  AlertCircle,
+  Plus,
+  Copy,
+  FileText,
+} from 'lucide-react';
 import { kobotoNaira } from '@/lib/constants';
-import type { Student } from '@/types';
+import type { Student, Invoice } from '@/types';
 
 export default function StudentDetailPage() {
   const router = useRouter();
   const params = useParams();
   const studentId = params.id as string;
+  const { user } = useAuth();
 
   const [student, setStudent] = useState<Student | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const { invoices, loading: invoicesLoading, error: invoicesError } = useInvoices(studentId);
+
+  // ── Fetch student data ─────────────────────
 
   useEffect(() => {
+    if (!user) return; // Wait for auth to restore session
+    const currentUser = user;
+
     async function fetchStudent() {
       try {
-        const auth = getFirebaseAuth();
-        const token = await auth.currentUser?.getIdToken();
-        if (!token) {
-          setError('Not authenticated');
-          setLoading(false);
-          return;
-        }
+        const token = await currentUser.getIdToken();
 
         const res = await fetch(`/api/students/${studentId}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -58,7 +80,20 @@ export default function StudentDetailPage() {
     }
 
     fetchStudent();
-  }, [studentId]);
+  }, [studentId, user]);
+
+  // ── Copy account number ────────────────────
+
+  async function copyAccountNumber() {
+    if (!student) return;
+    try {
+      await navigator.clipboard.writeText(student.virtualAccountNumber);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API may not be available
+    }
+  }
 
   // ── Loading state ──────────────────────────
 
@@ -69,7 +104,8 @@ export default function StudentDetailPage() {
         <Skeleton className="mb-4 h-6 w-64" />
         <div className="space-y-3">
           <Skeleton className="h-32 w-full rounded-lg" />
-          <Skeleton className="h-32 w-full rounded-lg" />
+          <Skeleton className="h-24 w-full rounded-lg" />
+          <Skeleton className="h-48 w-full rounded-lg" />
         </div>
       </div>
     );
@@ -98,100 +134,231 @@ export default function StudentDetailPage() {
     );
   }
 
-  // ── Detail view ────────────────────────────
+  // ── Main content ───────────────────────────
 
   return (
     <div className="p-6 lg:p-8">
-      {/* Back button */}
+      {/* Back link */}
       <Button
         variant="ghost"
         onClick={() => router.push('/dashboard/students')}
-        className="mb-6"
+        className="mb-4"
       >
         <ArrowLeft className="mr-2 h-4 w-4" />
         Back to Students
       </Button>
 
-      {/* Page title */}
-      <h1 className="mb-6 text-2xl font-bold text-gray-900">
-        {student.fullName}
-      </h1>
+      {/* Header row */}
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {student.fullName}
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            {student.class} &middot; {student.admissionNumber}
+          </p>
+        </div>
+        <Button onClick={() => setDialogOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Create Invoice
+        </Button>
+      </div>
 
-      {/* Info card */}
-      <div className="mb-6 rounded-lg border border-gray-200 bg-white p-6">
-        <h2 className="mb-4 text-lg font-semibold text-gray-900">
-          Student Information
-        </h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
-              Class
-            </p>
-            <p className="mt-1 text-sm font-medium text-gray-900">
-              {student.class}
-            </p>
+      {/* Virtual account info card */}
+      <Card className="mb-6">
+        <CardHeader className="pb-2">
+          <h2 className="text-sm font-semibold text-gray-900">
+            Virtual Account
+          </h2>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
+                Account Number
+              </p>
+              <div className="mt-1 flex items-center gap-2">
+                <span className="font-mono text-base font-bold text-gray-900">
+                  {student.virtualAccountNumber}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={copyAccountNumber}
+                  title="Copy account number"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+                {copied && (
+                  <span className="text-xs text-green-600">Copied!</span>
+                )}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
+                Bank
+              </p>
+              <p className="mt-1 text-sm font-medium text-gray-900">
+                {student.virtualAccountBankName}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
+                Reference
+              </p>
+              <p className="mt-1 font-mono text-xs text-gray-500">
+                {student.virtualAccountReference}
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
-              Admission Number
-            </p>
-            <p className="mt-1 font-mono text-sm font-medium text-gray-900">
-              {student.admissionNumber}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
-              Virtual Account Number
-            </p>
-            <p className="mt-1 font-mono text-sm font-bold text-gray-900">
-              {student.virtualAccountNumber}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
-              Bank Name
-            </p>
-            <p className="mt-1 text-sm font-medium text-gray-900">
-              {student.virtualAccountBankName}
-            </p>
-          </div>
-          <div>
+        </CardContent>
+      </Card>
+
+      {/* Balance summary */}
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Card>
+          <CardContent className="pt-5">
             <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
               Outstanding Balance
             </p>
-            <p
-              className={`mt-1 text-sm font-bold ${
-                student.outstandingBalance > 0
-                  ? 'text-red-600'
-                  : 'text-green-600'
-              }`}
-            >
-              {kobotoNaira(student.outstandingBalance)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
-              Credit Balance
-            </p>
-            <p
-              className={`mt-1 text-sm font-bold ${
-                student.creditBalance > 0
-                  ? 'text-blue-600'
-                  : 'text-gray-400'
-              }`}
-            >
-              {kobotoNaira(student.creditBalance)}
-            </p>
-          </div>
-        </div>
+            {student.outstandingBalance > 0 ? (
+              <p className="mt-1 text-xl font-bold text-red-600">
+                {kobotoNaira(student.outstandingBalance)}
+              </p>
+            ) : (
+              <p className="mt-1 text-xl font-bold text-green-600">
+                All clear
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {student.creditBalance > 0 && (
+          <Card className="border-blue-200 bg-blue-50">
+            <CardContent className="pt-5">
+              <p className="text-xs font-medium uppercase tracking-wider text-blue-600">
+                Credit Balance
+              </p>
+              <p className="mt-1 text-xl font-bold text-blue-700">
+                {kobotoNaira(student.creditBalance)}
+              </p>
+              <p className="mt-1 text-xs text-blue-600">
+                Credit available — will be applied to future invoices
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
-      {/* Invoices placeholder */}
-      <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
-        <p className="text-sm text-gray-500">
-          Invoices &mdash; coming soon
-        </p>
+      {/* Invoices section */}
+      <div>
+        <h2 className="mb-4 text-lg font-semibold text-gray-900">
+          Invoices
+        </h2>
+
+        {invoicesError ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+            <div className="flex items-center gap-2 text-red-700">
+              <AlertCircle className="h-4 w-4" />
+              <p className="text-sm font-medium">Failed to load invoices</p>
+            </div>
+            <p className="mt-1 text-xs text-red-600">{invoicesError}</p>
+          </div>
+        ) : invoicesLoading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-48 w-full rounded-lg" />
+            <Skeleton className="h-48 w-full rounded-lg" />
+          </div>
+        ) : invoices.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white py-12">
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
+              <FileText className="h-7 w-7 text-gray-400" />
+            </div>
+            <h3 className="text-base font-medium text-gray-900">
+              No invoices created yet
+            </h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Create the first invoice to start tracking payments
+            </p>
+            <Button
+              className="mt-4"
+              size="sm"
+              onClick={() => setDialogOpen(true)}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Create Invoice
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {invoices.map((inv) => (
+              <InvoiceCard key={inv.id} invoice={inv} onEdit={setEditingInvoice} />
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Create invoice dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create Invoice</DialogTitle>
+          </DialogHeader>
+          <CreateInvoiceForm
+            studentId={studentId}
+            studentName={student.fullName}
+            onSuccess={() => {
+              setDialogOpen(false);
+              // Invoice list auto-updates via onSnapshot
+              // Re-fetch student to get updated outstandingBalance
+              fetchStudentData();
+            }}
+            onCancel={() => setDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit invoice dialog */}
+      <Dialog open={!!editingInvoice} onOpenChange={(open) => !open && setEditingInvoice(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Invoice</DialogTitle>
+          </DialogHeader>
+          {editingInvoice && (
+            <EditInvoiceForm
+              invoice={editingInvoice}
+              studentName={student.fullName}
+              onSuccess={() => {
+                setEditingInvoice(null);
+                fetchStudentData();
+              }}
+              onCancel={() => setEditingInvoice(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
+
+  // ── Helper to re-fetch student after invoice creation ──
+
+  async function fetchStudentData() {
+    if (!user) return;
+    const currentUser = user;
+    try {
+      const token = await currentUser.getIdToken();
+
+      const res = await fetch(`/api/students/${studentId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setStudent(data.student);
+      }
+    } catch {
+      // Silently fail — student data will refresh on next page load
+    }
+  }
 }

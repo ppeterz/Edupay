@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
   LayoutDashboard,
   Users,
+  FileText,
   CreditCard,
   BarChart2,
 } from 'lucide-react';
@@ -27,6 +28,11 @@ const NAV_LINKS = [
     href: '/dashboard/students',
     label: 'Students',
     icon: Users,
+  },
+  {
+    href: '/dashboard/invoices',
+    label: 'Invoicing',
+    icon: FileText,
   },
   {
     href: '/dashboard/payments',
