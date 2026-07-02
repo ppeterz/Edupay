@@ -1,0 +1,45 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Schools ────────────────────────────────
+    // Only the owner (uid === doc ID) can read/write their school doc.
+    match /schools/{schoolId} {
+      allow read, write: if request.auth != null
+        && request.auth.uid == schoolId;
+    }
+
+    // ── Students ───────────────────────────────
+    // Only the owning school can read/write its students.
+    match /students/{studentId} {
+      allow read, update, delete: if request.auth != null
+        && resource.data.schoolId == request.auth.uid;
+
+      allow create: if request.auth != null
+        && request.resource.data.schoolId == request.auth.uid;
+    }
+
+    // ── Invoices (future) ──────────────────────
+    match /invoices/{invoiceId} {
+      allow read, update, delete: if request.auth != null
+        && resource.data.schoolId == request.auth.uid;
+
+      allow create: if request.auth != null
+        && request.resource.data.schoolId == request.auth.uid;
+    }
+
+    // ── Payments (future) ─────────────────────
+    match /payments/{paymentId} {
+      allow read: if request.auth != null
+        && resource.data.schoolId == request.auth.uid;
+      // Payments are created by the webhook (server-side), not by clients
+    }
+
+    // ── Reconciliation Events (future) ────────
+    match /reconciliationEvents/{eventId} {
+      allow read: if request.auth != null
+        && resource.data.schoolId == request.auth.uid;
+    }
+  }
+}
