@@ -41,5 +41,21 @@ service cloud.firestore {
       allow read: if request.auth != null
         && resource.data.schoolId == request.auth.uid;
     }
+
+    // ── Webhook Log (server-only writes) ────────
+    // Written by the Admin SDK in the webhook handler.
+    // Schools can read their own entries for auditing.
+    match /webhook_log/{logId} {
+      allow read: if request.auth != null
+        && resource.data.rawPayload.data.accountRef != null;
+      // All writes are Admin SDK server-side only
+    }
+
+    // ── Webhook Errors (server-only writes) ─────
+    // Written by processWebhookAsync when a payment cannot be matched.
+    // No client read — accessed only by admin/support tooling.
+    match /webhook_errors/{errorId} {
+      allow read, write: if false; // Admin SDK only
+    }
   }
 }

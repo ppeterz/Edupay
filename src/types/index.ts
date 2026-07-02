@@ -150,3 +150,24 @@ export interface DashboardStats {
   partialCount: number;
   unpaidCount: number;
 }
+
+// ── Webhook Audit Types ──────────────────────
+
+export interface WebhookLog {
+  id: string;
+  transactionId: string;
+  accountRef: string;
+  amount: number; // kobo
+  status: 'received' | 'processed' | 'duplicate' | 'error';
+  rawPayload: NombaWebhookPayload;
+  createdAt: string;
+}
+
+export interface WebhookError {
+  id: string;
+  accountRef: string;
+  transactionId: string;
+  payload: NombaWebhookPayload;
+  error: string;
+  createdAt: string;
+}
