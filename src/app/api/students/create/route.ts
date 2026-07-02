@@ -95,14 +95,14 @@ export async function POST(request: NextRequest) {
   let bankName: string;
 
   try {
-    const nombaResponse = await createVirtualAccount({
+    const nombaResult = await createVirtualAccount({
       accountName: fullName.trim(),
       accountRef: accountRef,
       // DO NOT set expectedAmount
     });
 
-    accountNumber = nombaResponse.responseBody.accountNumber;
-    bankName = nombaResponse.responseBody.bankName;
+    accountNumber = nombaResult.accountNumber;
+    bankName = nombaResult.bankName;
   } catch (nombaError) {
     console.error('Nomba virtual account creation failed:', nombaError);
     return Response.json(

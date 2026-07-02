@@ -9,7 +9,7 @@ import type {
   NombaVirtualAccountRequest,
   NombaVirtualAccountResponse,
 } from '@/types';
-import { NOMBA_BASE_URL, NOMBA_TOKEN_EXPIRY_MS } from './constants';
+import { NOMBA_AUTH_URL, NOMBA_API_URL, NOMBA_TOKEN_EXPIRY_MS } from './constants';
 
 // ── Token Cache ──────────────────────────────
 
@@ -24,7 +24,7 @@ let tokenCache: TokenCache | null = null;
 // ── Auth ─────────────────────────────────────
 
 export async function getNombaToken(): Promise<NombaAuthResponse> {
-  const res = await fetch(`${NOMBA_BASE_URL}/auth/token/issue`, {
+  const res = await fetch(`${NOMBA_AUTH_URL}/auth/token/issue`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -54,7 +54,7 @@ export async function getNombaToken(): Promise<NombaAuthResponse> {
 export async function refreshNombaToken(
   refreshToken: string
 ): Promise<NombaAuthResponse> {
-  const res = await fetch(`${NOMBA_BASE_URL}/auth/token/refresh`, {
+  const res = await fetch(`${NOMBA_AUTH_URL}/auth/token/refresh`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -122,7 +122,7 @@ export function clearTokenCache(): void {
 
 export async function createVirtualAccount(
   payload: NombaVirtualAccountRequest
-): Promise<NombaVirtualAccountResponse> {
+): Promise<{ accountNumber: string; bankName: string; accountRef: string }> {
   const token = await getValidToken();
 
   // CRITICAL: never set expectedAmount — omit it entirely
@@ -134,7 +134,7 @@ export async function createVirtualAccount(
   if (payload.bvn) body.bvn = payload.bvn;
   if (payload.nin) body.nin = payload.nin;
 
-  const res = await fetch(`${NOMBA_BASE_URL}/accounts/virtual`, {
+  const res = await fetch(`${NOMBA_API_URL}/accounts/virtual`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -151,15 +151,17 @@ export async function createVirtualAccount(
     );
   }
 
-  const data: NombaVirtualAccountResponse = await res.json();
+  const data = await res.json();
 
-  if (!data.requestSuccessful) {
-    throw new Error(
-      `Nomba rejected virtual account: ${data.responseMessage}`
-    );
+  if (!data.status) {
+    throw new Error(`Nomba rejected virtual account: ${data.description}`);
   }
 
-  return data;
+  return {
+    accountNumber: data.data.bankAccountNumber,
+    bankName: data.data.bankName,
+    accountRef: data.data.accountRef,
+  };
 }
 
 export async function listVirtualAccounts(): Promise<
@@ -167,7 +169,7 @@ export async function listVirtualAccounts(): Promise<
 > {
   const token = await getValidToken();
 
-  const res = await fetch(`${NOMBA_BASE_URL}/accounts/virtual`, {
+  const res = await fetch(`${NOMBA_API_URL}/accounts/virtual`, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${token}`,
