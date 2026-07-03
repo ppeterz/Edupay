@@ -15,7 +15,7 @@ import {
   StyleSheet,
   renderToBuffer,
 } from '@react-pdf/renderer';
-import { getAdminStorage } from './firebase-admin';
+import { uploadPdfToCloudinary } from './cloudinary';
 import type { Payment, Student, Invoice, School } from '@/types';
 import { kobotoNaira } from './constants';
 
@@ -114,19 +114,11 @@ export async function generateReceipt(
   // Render to PDF buffer
   const buffer = await renderToBuffer(doc);
 
-  // Upload to Firebase Storage
-  const storage = getAdminStorage();
-  const filePath = `receipts/${student.schoolId}/${student.id}/${payment.id}.pdf`;
-  const file = storage.bucket().file(filePath);
-  await file.save(Buffer.from(buffer), {
-    contentType: 'application/pdf',
-    metadata: {
-      cacheControl: 'public, max-age=31536000',
-    },
-  });
-  await file.makePublic();
+  // Upload to Cloudinary
+  const publicId = `receipts/${student.schoolId}/${student.id}/${payment.id}`;
+  const secureUrl = await uploadPdfToCloudinary(Buffer.from(buffer), publicId);
 
-  return file.publicUrl();
+  return secureUrl;
 }
 
 // ── PDF Styles ──────────────────────────────
