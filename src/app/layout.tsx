@@ -9,7 +9,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'SchoolLedger',
+  title: 'Edupay',
   description: 'Financial Reconciliation Infrastructure for Schools',
 };
 

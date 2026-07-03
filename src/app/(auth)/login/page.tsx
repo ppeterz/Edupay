@@ -72,7 +72,7 @@ export default function LoginPage() {
         <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground">
           ₦
         </span>
-        <span className="text-xl font-bold tracking-tight">SchoolLedger</span>
+        <span className="text-xl font-bold tracking-tight">Edupay</span>
       </div>
 
       <Card className="w-full">

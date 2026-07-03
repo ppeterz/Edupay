@@ -16,6 +16,7 @@ import {
 } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
+import { getStorage } from 'firebase-admin/storage';
 
 let _app: App | null = null;
 
@@ -63,4 +64,9 @@ export function getAdminDb() {
 /** Lazily initialised Auth instance */
 export function getAdminAuth() {
   return getAuth(ensureApp());
+}
+
+/** Lazily initialised Storage instance */
+export function getAdminStorage() {
+  return getStorage(ensureApp());
 }

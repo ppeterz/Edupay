@@ -75,7 +75,7 @@ export default function DashboardLayout({
             ₦
           </span>
           <span className="text-xl font-bold tracking-tight text-gray-900">
-            SchoolLedger
+            Edupay
           </span>
         </div>
         {/* Mobile close button */}
@@ -153,7 +153,7 @@ export default function DashboardLayout({
             ₦
           </span>
           <span className="text-lg font-bold tracking-tight text-gray-900">
-            SchoolLedger
+            Edupay
           </span>
         </div>
         <div className="w-9" /> {/* Visual spacing balancer */}

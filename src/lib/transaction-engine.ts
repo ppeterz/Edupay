@@ -11,9 +11,11 @@
 
 import { getAdminDb } from './firebase-admin';
 import { reconcile } from './reconciliation-engine';
+import { generateReceipt } from './receipt-generator';
 import { nairaToKobo } from './constants';
 import type {
   Student,
+  School,
   Invoice,
   Payment,
   NombaWebhookPayload,
@@ -253,10 +255,39 @@ export async function processPayment(
     .doc(eventId)
     .set(event);
 
-  // Step 7 — receipt generation (stub, real implementation in Stage 8)
+  // Step 7 — receipt generation (fire-and-forget — never blocks payment processing)
   console.log(
     `[transaction-engine] Payment ${paymentId} processed: ${result.eventType}, ` +
       `allocated ${result.allocations.reduce((s, a) => s + a.amountAllocated, 0)} kobo, ` +
       `credit ${result.creditGenerated} kobo`
   );
+
+  // Fetch school doc for receipt header, then generate PDF in background
+  generateReceipt(
+    {
+      ...pendingPayment,
+      allocations: result.allocations,
+      processedAt: new Date().toISOString(),
+    },
+    student,
+    {
+      ...invoice,
+      lineItems: result.updatedLineItems,
+      totalAmountPaid: result.newTotalAmountPaid,
+      outstandingBalance: result.newOutstandingBalance,
+      status: result.newInvoiceStatus,
+    },
+    await adminDb
+      .collection('schools')
+      .doc(student.schoolId)
+      .get()
+      .then((doc) => (doc.data() as School) ?? { id: student.schoolId, name: 'School', email: '', createdAt: '' })
+  )
+    .then(async (url) => {
+      await adminDb.collection('payments').doc(paymentId).update({ receiptUrl: url });
+      console.log(`[transaction-engine] Receipt generated for ${paymentId}: ${url}`);
+    })
+    .catch((err) =>
+      console.error('[transaction-engine] Receipt generation failed:', err)
+    );
 }

@@ -1,0 +1,9 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /receipts/{schoolId}/{studentId}/{fileName} {
+      allow read: if true;   // public receipt links
+      allow write: if false; // server (Admin SDK) only, bypasses rules anyway
+    }
+  }
+}
