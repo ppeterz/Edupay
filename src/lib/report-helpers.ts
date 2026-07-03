@@ -77,6 +77,7 @@ export function buildStudentReport(
   const studentsById = new Map(students.map((s) => [s.id, s]));
 
   return invoices
+    .filter((inv) => inv.outstandingBalance > 0)
     .map((inv) => {
       const student = studentsById.get(inv.studentId);
       if (!student) return null;

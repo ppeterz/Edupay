@@ -17,15 +17,20 @@ import type { Invoice, Student } from '@/types';
 export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
+  let step = 'init';
   try {
     // 1. Verify auth token → schoolId
+    step = 'auth';
     const decoded = await verifyAuthToken(request);
     if (!decoded) return unauthorized();
 
     const schoolId = decoded.uid;
+
+    step = 'firestore-init';
     const adminDb = getAdminDb();
 
     // 2. Validate query params
+    step = 'params';
     const { searchParams } = new URL(request.url);
     const term = searchParams.get('term');
     const session = searchParams.get('session');
@@ -35,6 +40,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 3. Fetch invoices for this school + term + session
+    step = 'fetch-invoices';
     const invoicesSnap = await adminDb
       .collection('invoices')
       .where('schoolId', '==', schoolId)
@@ -45,6 +51,7 @@ export async function GET(request: NextRequest) {
     const invoices = invoicesSnap.docs.map((d) => d.data() as Invoice);
 
     // 4. Fetch all students for the school
+    step = 'fetch-students';
     const studentsSnap = await adminDb
       .collection('students')
       .where('schoolId', '==', schoolId)
@@ -53,6 +60,7 @@ export async function GET(request: NextRequest) {
     const students = studentsSnap.docs.map((d) => d.data() as Student);
 
     // 5. Build report data
+    step = 'build-report';
     const byClass = buildClassReport(invoices, students);
     const byStudent = buildStudentReport(invoices, students);
 
@@ -72,12 +80,11 @@ export async function GET(request: NextRequest) {
       byStudent,
     });
   } catch (err) {
-    console.error('[reports-summary-api] Error:', err);
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
+    console.error(`[reports-summary-api] Error at step="${step}":`, err);
     return Response.json(
-      {
-        error: err instanceof Error ? err.message : String(err),
-        stack: err instanceof Error ? err.stack : undefined,
-      },
+      { error: `[${step}] ${message}`, stack },
       { status: 500 }
     );
   }
