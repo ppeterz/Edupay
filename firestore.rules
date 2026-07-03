@@ -36,20 +36,20 @@ service cloud.firestore {
       // Payments are created by the webhook (server-side), not by clients
     }
 
-    // ── Reconciliation Events (future) ────────
-    match /reconciliationEvents/{eventId} {
+    // ── Reconciliation Events ────────────────
+    match /reconciliation_events/{eventId} {
       allow read: if request.auth != null
         && resource.data.schoolId == request.auth.uid;
     }
 
     // ── Webhook Log (server-only writes) ────────
     // Written by the Admin SDK in the webhook handler.
-    // Schools can read their own entries for auditing.
+    // Schools can read entries for live monitoring/auditing.
     match /webhook_log/{logId} {
-      allow read: if request.auth != null
-        && resource.data.rawPayload.data.accountRef != null;
+      allow read: if request.auth != null;
       // All writes are Admin SDK server-side only
     }
+
 
     // ── Webhook Errors (server-only writes) ─────
     // Written by processWebhookAsync when a payment cannot be matched.

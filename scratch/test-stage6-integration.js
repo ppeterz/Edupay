@@ -131,13 +131,14 @@ function uniqueId(prefix) {
 async function createStudent(overrides = {}) {
   const id = uniqueId('stu');
   const accountRef = uniqueId('ref');
+  const suffix = id.slice(id.lastIndexOf('-') + 1); // scenario incremental suffix
   const student = {
     id,
     schoolId: 'IddNZ92uWbZjg5V97qkn5KCbNDn2',
-    fullName: 'Jane ife',
+    fullName: `Jane Ife (Scenario ${suffix})`,
     class: 'JSS 2',
-    admissionNumber: 'ADM004',
-    virtualAccountNumber: '6747427979',
+    admissionNumber: `ADM-${suffix.padStart(3, '0')}`,
+    virtualAccountNumber: `6747${Math.floor(100000 + Math.random() * 900000)}`,
     virtualAccountReference: accountRef,
     virtualAccountBankName: 'Nombank MFB',
     outstandingBalance: 0,
@@ -156,7 +157,7 @@ async function createInvoice(studentId, schoolId, { lineItems, status = 'unpaid'
   const invoice = {
     id,
     studentId,
-    schoolId,
+    schoolId: 'IddNZ92uWbZjg5V97qkn5KCbNDn2', // Override to use real logged-in school ID so they display on dashboard
     term: 'First Term',
     session: '2026/2027',
     totalAmountDue,
@@ -578,6 +579,8 @@ async function runAll() {
   }
 
   // ── Post-run Cleanup ──
+  // (Disabled so you can review transactions, logs, and student ledger timelines on the Dashboard pages)
+  /*
   console.log('\n🧹 Cleaning up temporary test records from Firestore...');
   try {
     const studentsSnap = await db.collection('students').get();
@@ -605,6 +608,8 @@ async function runAll() {
   } catch (err) {
     console.error('⚠️ Post-run cleanup encountered an error:', err.message);
   }
+  */
+
 
   console.log('\n=======================================');
   console.log(`✨ SUITE COMPLETE — ${passCount} passed, ${failCount} failed`);

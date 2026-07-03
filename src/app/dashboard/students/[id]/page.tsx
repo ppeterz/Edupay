@@ -30,6 +30,8 @@ import {
 } from 'lucide-react';
 import { kobotoNaira } from '@/lib/constants';
 import type { Student, Invoice } from '@/types';
+import { StudentBalanceSummary } from '@/components/dashboard/StudentBalanceSummary';
+
 
 export default function StudentDetailPage() {
   const router = useRouter();
@@ -216,89 +218,62 @@ export default function StudentDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Balance summary */}
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Card>
-          <CardContent className="pt-5">
-            <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
-              Outstanding Balance
-            </p>
-            {student.outstandingBalance > 0 ? (
-              <p className="mt-1 text-xl font-bold text-red-600">
-                {kobotoNaira(student.outstandingBalance)}
-              </p>
-            ) : (
-              <p className="mt-1 text-xl font-bold text-green-600">
-                All clear
-              </p>
-            )}
-          </CardContent>
-        </Card>
+      {/* Balances, Timeline & Invoices Grid */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 items-start">
+        {/* Invoices List */}
+        <div className="lg:col-span-2">
+          <h2 className="mb-4 text-lg font-semibold text-gray-900">
+            Invoices
+          </h2>
 
-        {student.creditBalance > 0 && (
-          <Card className="border-blue-200 bg-blue-50">
-            <CardContent className="pt-5">
-              <p className="text-xs font-medium uppercase tracking-wider text-blue-600">
-                Credit Balance
+          {invoicesError ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+              <div className="flex items-center gap-2 text-red-700">
+                <AlertCircle className="h-4 w-4" />
+                <p className="text-sm font-medium">Failed to load invoices</p>
+              </div>
+              <p className="mt-1 text-xs text-red-600">{invoicesError}</p>
+            </div>
+          ) : invoicesLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-48 w-full rounded-lg" />
+              <Skeleton className="h-48 w-full rounded-lg" />
+            </div>
+          ) : invoices.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white py-12">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
+                <FileText className="h-7 w-7 text-gray-400" />
+              </div>
+              <h3 className="text-base font-medium text-gray-900">
+                No invoices created yet
+              </h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Create the first invoice to start tracking payments
               </p>
-              <p className="mt-1 text-xl font-bold text-blue-700">
-                {kobotoNaira(student.creditBalance)}
-              </p>
-              <p className="mt-1 text-xs text-blue-600">
-                Credit available — will be applied to future invoices
-              </p>
-            </CardContent>
-          </Card>
-        )}
+              <Button
+                className="mt-4"
+                size="sm"
+                onClick={() => setDialogOpen(true)}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Create Invoice
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {invoices.map((inv) => (
+                <InvoiceCard key={inv.id} invoice={inv} onEdit={setEditingInvoice} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Ledger Balances & Timeline Column */}
+        <div className="lg:col-span-1">
+          <StudentBalanceSummary student={student} />
+        </div>
       </div>
 
-      {/* Invoices section */}
-      <div>
-        <h2 className="mb-4 text-lg font-semibold text-gray-900">
-          Invoices
-        </h2>
-
-        {invoicesError ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-            <div className="flex items-center gap-2 text-red-700">
-              <AlertCircle className="h-4 w-4" />
-              <p className="text-sm font-medium">Failed to load invoices</p>
-            </div>
-            <p className="mt-1 text-xs text-red-600">{invoicesError}</p>
-          </div>
-        ) : invoicesLoading ? (
-          <div className="space-y-3">
-            <Skeleton className="h-48 w-full rounded-lg" />
-            <Skeleton className="h-48 w-full rounded-lg" />
-          </div>
-        ) : invoices.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white py-12">
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
-              <FileText className="h-7 w-7 text-gray-400" />
-            </div>
-            <h3 className="text-base font-medium text-gray-900">
-              No invoices created yet
-            </h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Create the first invoice to start tracking payments
-            </p>
-            <Button
-              className="mt-4"
-              size="sm"
-              onClick={() => setDialogOpen(true)}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Create Invoice
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {invoices.map((inv) => (
-              <InvoiceCard key={inv.id} invoice={inv} onEdit={setEditingInvoice} />
-            ))}
-          </div>
-        )}
-      </div>
 
       {/* Create invoice dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
