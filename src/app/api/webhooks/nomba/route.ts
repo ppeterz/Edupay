@@ -5,16 +5,20 @@
 //
 // Execution order (non-negotiable):
 //   1. Read raw body as TEXT — do NOT parse JSON yet
-//   2. Verify HMAC-SHA256 signature → 401 if invalid
+//   2. Verify Nomba HMAC-SHA256 signature (base64, field-based hashing payload)
 //   3. Parse JSON
 //   4. Write `webhook_log` entry (status = 'received') — synchronous audit trail
 //   5. Return 200 immediately
 //   6. after() → processWebhookAsync(payload)   ← async, does NOT block response
+//
+// Signature algorithm per: https://developer.nomba.com/docs/api-basics/webhook
 
 import { NextRequest, NextResponse, after } from 'next/server';
-import { createHmac, timingSafeEqual } from 'crypto';
+import crypto from 'crypto';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { processWebhookAsync } from '@/lib/webhook-processor';
+import { buildHashingPayload } from '@/lib/webhook-helpers';
+import { nairaToKobo } from '@/lib/constants';
 import type { NombaWebhookPayload, WebhookLog } from '@/types';
 
 export const runtime = 'nodejs';
@@ -23,17 +27,19 @@ export async function POST(request: NextRequest) {
   // ── 1. Read raw body ──────────────────────────
   const rawBody = await request.text();
 
-  // ── 2. Verify HMAC-SHA256 signature ──────────
+  // ── 2. Verify Nomba signature ─────────────────
+  const signatureHeader = request.headers.get('nomba-signature');
+  const timestampHeader = request.headers.get('nomba-timestamp');
+
+  if (!signatureHeader || !timestampHeader) {
+    return NextResponse.json(
+      { error: 'Missing signature headers' },
+      { status: 401 }
+    );
+  }
+
   const webhookSecret = process.env.NOMBA_WEBHOOK_SECRET || '';
-
-  // Nomba may use either header name — try both
-  const signature =
-    request.headers.get('x-nomba-signature') ||
-    request.headers.get('x-webhook-signature') ||
-    '';
-
   if (!webhookSecret) {
-    // Hard fail in all environments if the secret is not configured
     console.error('[webhook] NOMBA_WEBHOOK_SECRET is not set');
     return NextResponse.json(
       { error: 'Webhook secret not configured' },
@@ -41,36 +47,49 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const expectedHmac = createHmac('sha256', webhookSecret)
-    .update(rawBody, 'utf8')
-    .digest('hex');
-
-  // timingSafeEqual requires equal-length buffers
-  const sigBuffer = Buffer.from(signature, 'utf8');
-  const expBuffer = Buffer.from(expectedHmac, 'utf8');
-
-  const signatureValid =
-    sigBuffer.length === expBuffer.length &&
-    timingSafeEqual(sigBuffer, expBuffer);
-
-  if (!signatureValid) {
-    console.warn('[webhook] Signature mismatch — rejecting request');
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-  }
-
   // ── 3. Parse JSON ─────────────────────────────
   let payload: NombaWebhookPayload;
   try {
     payload = JSON.parse(rawBody) as NombaWebhookPayload;
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { transactionId, accountRef, amount } = payload.data;
+  // ── Verify HMAC-SHA256 (base64) ───────────────
+  try {
+    const hashingPayload = buildHashingPayload(payload, timestampHeader);
+    const computedSignature = crypto
+      .createHmac('sha256', webhookSecret)
+      .update(hashingPayload)
+      .digest('base64'); // BASE64, not hex
 
-  if (!transactionId || !accountRef) {
+    const sigBuffer = Buffer.from(signatureHeader, 'base64');
+    const computedBuffer = Buffer.from(computedSignature, 'base64');
+
+    if (
+      sigBuffer.length !== computedBuffer.length ||
+      !crypto.timingSafeEqual(sigBuffer, computedBuffer)
+    ) {
+      console.warn('[webhook] Signature mismatch — rejecting request');
+      return NextResponse.json(
+        { error: 'Invalid signature' },
+        { status: 401 }
+      );
+    }
+  } catch (err) {
+    console.error('[webhook] Signature verification error:', err);
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+  }
+
+  // ── Extract key fields ────────────────────────
+  const txn = payload.data.transaction;
+  const transactionId = txn.transactionId;
+  const aliasAccountReference = txn.aliasAccountReference ?? '';
+  const amountInKobo = nairaToKobo(txn.transactionAmount);
+
+  if (!transactionId) {
     return NextResponse.json(
-      { error: 'Missing required payload fields: transactionId, accountRef' },
+      { error: 'Missing required field: data.transaction.transactionId' },
       { status: 400 }
     );
   }
@@ -83,8 +102,8 @@ export async function POST(request: NextRequest) {
     const logEntry: WebhookLog = {
       id: logId,
       transactionId,
-      accountRef,
-      amount: amount ?? 0,
+      aliasAccountReference,
+      amount: amountInKobo,
       status: 'received',
       rawPayload: payload,
       createdAt: new Date().toISOString(),

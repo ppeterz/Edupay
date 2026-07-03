@@ -3,14 +3,15 @@
 // POST /api/webhooks/nomba/test
 // ──────────────────────────────────────────────
 // Allows local testing of the webhook pipeline without ngrok.
-// Signs a mock payload with NOMBA_WEBHOOK_SECRET and calls the
-// main webhook handler internally.
+// Signs a mock payload with NOMBA_WEBHOOK_SECRET using Nomba's
+// real signature algorithm and calls the main webhook handler.
 //
 // ⚠️  ONLY active when NODE_ENV !== 'production'.
 //     Returns 404 in production builds.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createHmac } from 'crypto';
+import crypto from 'crypto';
+import { buildHashingPayload } from '@/lib/webhook-helpers';
 import type { NombaWebhookPayload } from '@/types';
 
 export const runtime = 'nodejs';
@@ -30,43 +31,68 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Parse the mock payload ────────────────────
-  let mockPayload: NombaWebhookPayload;
+  let input: Partial<NombaWebhookPayload>;
   try {
-    mockPayload = (await request.json()) as NombaWebhookPayload;
+    input = (await request.json()) as Partial<NombaWebhookPayload>;
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
   // Apply defaults so callers only need to provide the interesting fields
-  const defaultPayload: NombaWebhookPayload = {
-    event: 'collection.successful',
-    data: {
-      transactionId: `test-txn-${Date.now()}`,
-      amount: 500000, // ₦5,000 in kobo
-      accountRef: mockPayload.data?.accountRef ?? 'UNKNOWN_REF',
-      accountNumber: mockPayload.data?.accountNumber ?? '0000000000',
-      narration: 'School fees payment',
-      currency: 'NGN',
-      transactionDate: new Date().toISOString(),
-      senderName: mockPayload.data?.senderName ?? 'Test Sender',
-      senderBank: mockPayload.data?.senderBank ?? 'Test Bank',
-    },
-  };
-
+  const now = new Date().toISOString();
   const mergedPayload: NombaWebhookPayload = {
-    event: mockPayload.event ?? defaultPayload.event,
+    event_type: input.event_type ?? 'payment_success',
+    requestId: input.requestId ?? `req-test-${Date.now()}`,
     data: {
-      ...defaultPayload.data,
-      ...mockPayload.data,
+      merchant: {
+        walletId: input.data?.merchant?.walletId ?? 'test-wallet-id',
+        walletBalance: input.data?.merchant?.walletBalance ?? 100000,
+        userId: input.data?.merchant?.userId ?? 'test-user-id',
+      },
+      terminal: input.data?.terminal ?? {},
+      transaction: {
+        transactionId:
+          input.data?.transaction?.transactionId ?? `test-txn-${Date.now()}`,
+        transactionAmount:
+          input.data?.transaction?.transactionAmount ?? 5000.0, // ₦5,000
+        aliasAccountReference:
+          input.data?.transaction?.aliasAccountReference ?? 'UNKNOWN_REF',
+        aliasAccountNumber:
+          input.data?.transaction?.aliasAccountNumber ?? '0000000000',
+        aliasAccountName:
+          input.data?.transaction?.aliasAccountName ?? 'Test Student',
+        aliasAccountType:
+          input.data?.transaction?.aliasAccountType ?? 'virtual',
+        fee: input.data?.transaction?.fee ?? 0,
+        sessionId:
+          input.data?.transaction?.sessionId ?? `sess-${Date.now()}`,
+        type: input.data?.transaction?.type ?? 'collection',
+        responseCode: input.data?.transaction?.responseCode ?? '00',
+        originatingFrom:
+          input.data?.transaction?.originatingFrom ?? 'test',
+        narration:
+          input.data?.transaction?.narration ?? 'School fees payment',
+        time: input.data?.transaction?.time ?? now,
+        merchantTxRef: input.data?.transaction?.merchantTxRef,
+      },
+      customer: {
+        bankCode: input.data?.customer?.bankCode ?? '000',
+        senderName: input.data?.customer?.senderName ?? 'Test Sender',
+        bankName: input.data?.customer?.bankName ?? 'Test Bank',
+        accountNumber: input.data?.customer?.accountNumber ?? '1234567890',
+      },
     },
   };
 
   const rawBody = JSON.stringify(mergedPayload);
 
   // ── Sign exactly as Nomba would ───────────────
-  const signature = createHmac('sha256', webhookSecret)
-    .update(rawBody, 'utf8')
-    .digest('hex');
+  const timestamp = now;
+  const hashingPayload = buildHashingPayload(mergedPayload, timestamp);
+  const signature = crypto
+    .createHmac('sha256', webhookSecret)
+    .update(hashingPayload)
+    .digest('base64'); // BASE64, matching Nomba's real format
 
   // ── Call the main webhook handler via internal fetch ──
   const baseUrl = request.nextUrl.origin;
@@ -76,7 +102,8 @@ export async function POST(request: NextRequest) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-nomba-signature': signature,
+      'nomba-signature': signature,
+      'nomba-timestamp': timestamp,
     },
     body: rawBody,
   });
@@ -87,6 +114,7 @@ export async function POST(request: NextRequest) {
     {
       testPayload: mergedPayload,
       signature,
+      timestamp,
       webhookStatus: webhookResponse.status,
       webhookResponse: responseBody,
     },

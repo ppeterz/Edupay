@@ -124,17 +124,43 @@ export interface NombaVirtualAccountResponse {
 }
 
 export interface NombaWebhookPayload {
-  event: string;
+  event_type:
+    | 'payment_success'
+    | 'payout_success'
+    | 'payment_failed'
+    | 'payment_reversal'
+    | 'payout_failed'
+    | 'payout_refund';
+  requestId: string;
   data: {
-    transactionId: string;
-    amount: number; // kobo
-    accountRef: string; // PRIMARY match key — never match by name or amount
-    accountNumber: string;
-    narration: string;
-    currency: string;
-    transactionDate: string;
-    senderName?: string;
-    senderBank?: string;
+    merchant: {
+      walletId: string;
+      walletBalance: number;
+      userId: string;
+    };
+    terminal: Record<string, unknown>;
+    transaction: {
+      aliasAccountNumber?: string;
+      fee: number;
+      sessionId: string;
+      type: string;
+      transactionId: string;
+      aliasAccountName?: string;
+      responseCode: string;
+      originatingFrom: string;
+      transactionAmount: number; // NAIRA with decimals — convert with nairaToKobo() on ingest
+      narration: string;
+      time: string;
+      aliasAccountReference?: string; // THE MATCH KEY — maps to student.virtualAccountReference
+      aliasAccountType?: string;
+      merchantTxRef?: string;
+    };
+    customer: {
+      bankCode: string;
+      senderName: string;
+      bankName: string;
+      accountNumber: string;
+    };
   };
 }
 
@@ -156,8 +182,8 @@ export interface DashboardStats {
 export interface WebhookLog {
   id: string;
   transactionId: string;
-  accountRef: string;
-  amount: number; // kobo
+  aliasAccountReference: string;
+  amount: number; // kobo (converted from Naira on ingest)
   status: 'received' | 'processed' | 'duplicate' | 'error';
   rawPayload: NombaWebhookPayload;
   createdAt: string;
@@ -165,9 +191,10 @@ export interface WebhookLog {
 
 export interface WebhookError {
   id: string;
-  accountRef: string;
+  aliasAccountReference: string;
   transactionId: string;
   payload: NombaWebhookPayload;
   error: string;
   createdAt: string;
 }
+

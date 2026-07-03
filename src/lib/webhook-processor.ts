@@ -5,12 +5,13 @@
 //
 // Algorithm:
 //   1. Idempotency check — skip if transactionId already in `payments`
-//   2. Match student by virtualAccountReference (accountRef) — NEVER name/amount
+//   2. Match student by virtualAccountReference (aliasAccountReference) — NEVER name/amount
 //   3. Delegate to processPayment (stubbed until Stage 6)
 //
 // On any failure: write to `webhook_errors` collection (audit trail)
 
 import { getAdminDb } from '@/lib/firebase-admin';
+import { nairaToKobo } from '@/lib/constants';
 import type {
   NombaWebhookPayload,
   Student,
@@ -24,7 +25,10 @@ export async function processWebhookAsync(
   payload: NombaWebhookPayload
 ): Promise<void> {
   const adminDb = getAdminDb();
-  const { transactionId, accountRef, amount } = payload.data;
+  const txn = payload.data.transaction;
+  const transactionId = txn.transactionId;
+  const aliasAccountReference = txn.aliasAccountReference ?? '';
+  const amountInKobo = nairaToKobo(txn.transactionAmount);
 
   try {
     // 1. Idempotency — was this transactionId already processed?
@@ -42,29 +46,26 @@ export async function processWebhookAsync(
       return;
     }
 
-    // 2. Find student by virtualAccountReference (accountRef)
-    //    CRITICAL: Match by accountRef ONLY — never by name or amount
+    // 2. Find student by virtualAccountReference (aliasAccountReference)
+    //    CRITICAL: Match by aliasAccountReference ONLY — never by name or amount
+    if (!aliasAccountReference) {
+      const msg = `Webhook payload missing aliasAccountReference for transactionId ${transactionId}`;
+      console.error(`[webhook] ${msg}`);
+      await writeWebhookError(aliasAccountReference, transactionId, payload, msg);
+      await patchWebhookLogStatus(transactionId, 'error');
+      return;
+    }
+
     const studentSnap = await adminDb
       .collection('students')
-      .where('virtualAccountReference', '==', accountRef)
+      .where('virtualAccountReference', '==', aliasAccountReference)
       .limit(1)
       .get();
 
     if (studentSnap.empty) {
-      const msg = `No student found with virtualAccountReference = ${accountRef}`;
+      const msg = `No student found with virtualAccountReference = ${aliasAccountReference}`;
       console.error(`[webhook] ${msg}`);
-
-      // Write structured error to webhook_errors
-      const errorId = adminDb.collection('webhook_errors').doc().id;
-      const errorDoc: WebhookError = {
-        id: errorId,
-        accountRef,
-        transactionId,
-        payload,
-        error: msg,
-        createdAt: new Date().toISOString(),
-      };
-      await adminDb.collection('webhook_errors').doc(errorId).set(errorDoc);
+      await writeWebhookError(aliasAccountReference, transactionId, payload, msg);
       await patchWebhookLogStatus(transactionId, 'error');
       return;
     }
@@ -72,7 +73,7 @@ export async function processWebhookAsync(
     const student = studentSnap.docs[0].data() as Student;
 
     // 3. Delegate to payment engine
-    await processPayment(student, payload, amount);
+    await processPayment(student, payload, amountInKobo);
   } catch (err) {
     // Catch-all: log and mark error without crashing the process
     console.error(
@@ -88,6 +89,28 @@ export async function processWebhookAsync(
 }
 
 // ── Helpers ───────────────────────────────────
+
+/**
+ * Write a structured error document to the `webhook_errors` collection.
+ */
+async function writeWebhookError(
+  aliasAccountReference: string,
+  transactionId: string,
+  payload: NombaWebhookPayload,
+  error: string
+): Promise<void> {
+  const adminDb = getAdminDb();
+  const errorId = adminDb.collection('webhook_errors').doc().id;
+  const errorDoc: WebhookError = {
+    id: errorId,
+    aliasAccountReference,
+    transactionId,
+    payload,
+    error,
+    createdAt: new Date().toISOString(),
+  };
+  await adminDb.collection('webhook_errors').doc(errorId).set(errorDoc);
+}
 
 /**
  * Update the status field on the existing webhook_log entry for this transactionId.
@@ -119,12 +142,14 @@ async function patchWebhookLogStatus(
 async function processPayment(
   student: Student,
   payload: NombaWebhookPayload,
-  amount: number
+  amountInKobo: number
 ): Promise<void> {
+  const transactionId = payload.data.transaction.transactionId;
+
   console.log(
-    `[webhook] Processing payment ${payload.data.transactionId} ` +
+    `[webhook] Processing payment ${transactionId} ` +
       `for student "${student.fullName}" (${student.id}), ` +
-      `amount: ${amount} kobo`
+      `amount: ${amountInKobo} kobo`
   );
 
   // TODO: Stage 6 — full reconciliation logic goes here:
@@ -133,5 +158,5 @@ async function processPayment(
   //   - Write Payment doc + ReconciliationEvent
   //   - Update student.outstandingBalance / creditBalance
 
-  await patchWebhookLogStatus(payload.data.transactionId, 'processed');
+  await patchWebhookLogStatus(transactionId, 'processed');
 }
