@@ -13,6 +13,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createHmac } from 'crypto';
 import type { NombaWebhookPayload } from '@/types';
 
+export const runtime = 'nodejs';
+
 export async function POST(request: NextRequest) {
   // Hard gate — never expose in production
   if (process.env.NODE_ENV === 'production') {

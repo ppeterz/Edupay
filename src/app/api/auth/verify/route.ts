@@ -5,6 +5,8 @@
 import { NextRequest } from 'next/server';
 import { getAdminAuth } from '@/lib/firebase-admin';
 
+export const runtime = 'nodejs';
+
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) {

@@ -10,6 +10,8 @@ import { getAdminDb } from '@/lib/firebase-admin';
 import { createVirtualAccount } from '@/lib/nomba';
 import type { Student } from '@/types';
 
+export const runtime = 'nodejs';
+
 export async function POST(request: NextRequest) {
   // 1. Verify auth token
   const decoded = await verifyAuthToken(request);

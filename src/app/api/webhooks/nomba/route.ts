@@ -17,6 +17,8 @@ import { getAdminDb } from '@/lib/firebase-admin';
 import { processWebhookAsync } from '@/lib/webhook-processor';
 import type { NombaWebhookPayload, WebhookLog } from '@/types';
 
+export const runtime = 'nodejs';
+
 export async function POST(request: NextRequest) {
   // ── 1. Read raw body ──────────────────────────
   const rawBody = await request.text();

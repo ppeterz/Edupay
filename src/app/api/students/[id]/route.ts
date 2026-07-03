@@ -10,6 +10,8 @@ import { verifyAuthToken, unauthorized, badRequest } from '@/lib/auth-helpers';
 import { getAdminDb } from '@/lib/firebase-admin';
 import type { Student } from '@/types';
 
+export const runtime = 'nodejs';
+
 interface RouteContext {
   params: Promise<{ id: string }>;
 }

@@ -14,6 +14,8 @@ import {
 import { nairaToKobo } from '@/lib/constants';
 import type { Student, Invoice, InvoiceLineItem } from '@/types';
 
+export const runtime = 'nodejs';
+
 const VALID_TERMS = ['First Term', 'Second Term', 'Third Term'];
 
 export async function POST(request: NextRequest) {

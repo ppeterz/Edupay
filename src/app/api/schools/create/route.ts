@@ -6,6 +6,8 @@ import { NextRequest } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase-admin';
 import type { School } from '@/types';
 
+export const runtime = 'nodejs';
+
 export async function POST(request: NextRequest) {
   const adminAuth = getAdminAuth();
   const adminDb = getAdminDb();

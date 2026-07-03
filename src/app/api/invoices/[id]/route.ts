@@ -10,6 +10,8 @@ import { validateLineItems, calculateInvoiceTotals } from '@/lib/invoice-helpers
 import { nairaToKobo } from '@/lib/constants';
 import type { Student, Invoice, InvoiceLineItem } from '@/types';
 
+export const runtime = 'nodejs';
+
 interface RouteContext {
   params: Promise<{ id: string }>;
 }

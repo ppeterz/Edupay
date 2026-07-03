@@ -17,6 +17,8 @@ import {
 import { nairaToKobo, CLASS_CATEGORIES } from '@/lib/constants';
 import type { Student, Invoice, InvoiceLineItem } from '@/types';
 
+export const runtime = 'nodejs';
+
 const VALID_TERMS = ['First Term', 'Second Term', 'Third Term'];
 const CHUNK_SIZE = 200; // 200 students × 2 ops = 400 ops per batch (under 500 limit)
 

@@ -8,6 +8,8 @@ import { verifyAuthToken, unauthorized } from '@/lib/auth-helpers';
 import { getAdminDb } from '@/lib/firebase-admin';
 import type { Student } from '@/types';
 
+export const runtime = 'nodejs';
+
 export async function GET(request: NextRequest) {
   // 1. Verify auth token
   const decoded = await verifyAuthToken(request);
