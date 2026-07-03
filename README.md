@@ -34,3 +34,13 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Firestore Indexes
+
+The active-invoice lookup query in `src/lib/transaction-engine.ts` requires a composite index on the `invoices` collection:
+
+| Collection | Fields                                              |
+|------------|-----------------------------------------------------|
+| `invoices` | `studentId` (asc), `status` (asc), `createdAt` (asc) |
+
+On first run, Firestore will log an error with a direct link to create this index automatically — click that link once. **Do not deploy to production without creating this index first.**

@@ -1,17 +1,17 @@
 // ──────────────────────────────────────────────
-// EduPay — Webhook Processor (Stage 5)
+// EduPay — Webhook Processor (Stage 5 → 6)
 // ──────────────────────────────────────────────
 // Async processing after the webhook handler returns 200.
 //
 // Algorithm:
 //   1. Idempotency check — skip if transactionId already in `payments`
 //   2. Match student by virtualAccountReference (aliasAccountReference) — NEVER name/amount
-//   3. Delegate to processPayment (stubbed until Stage 6)
+//   3. Delegate to transaction engine (processPayment)
 //
 // On any failure: write to `webhook_errors` collection (audit trail)
 
 import { getAdminDb } from '@/lib/firebase-admin';
-import { nairaToKobo } from '@/lib/constants';
+import { processPayment } from '@/lib/transaction-engine';
 import type {
   NombaWebhookPayload,
   Student,
@@ -28,7 +28,6 @@ export async function processWebhookAsync(
   const txn = payload.data.transaction;
   const transactionId = txn.transactionId;
   const aliasAccountReference = txn.aliasAccountReference ?? '';
-  const amountInKobo = nairaToKobo(txn.transactionAmount);
 
   try {
     // 1. Idempotency — was this transactionId already processed?
@@ -72,8 +71,11 @@ export async function processWebhookAsync(
 
     const student = studentSnap.docs[0].data() as Student;
 
-    // 3. Delegate to payment engine
-    await processPayment(student, payload, amountInKobo);
+    // 3. Delegate to transaction engine (Stage 6)
+    await processPayment(student, payload);
+
+    // 4. Mark webhook log as processed
+    await patchWebhookLogStatus(transactionId, 'processed');
   } catch (err) {
     // Catch-all: log and mark error without crashing the process
     console.error(
@@ -131,32 +133,4 @@ async function patchWebhookLogStatus(
   if (!snap.empty) {
     await snap.docs[0].ref.update({ status });
   }
-}
-
-// ── Payment Engine Stub (replaced in Stage 6) ─
-
-/**
- * Stub for the full payment reconciliation engine (Stage 6).
- * Logs the intent and marks the webhook log as processed.
- */
-async function processPayment(
-  student: Student,
-  payload: NombaWebhookPayload,
-  amountInKobo: number
-): Promise<void> {
-  const transactionId = payload.data.transaction.transactionId;
-
-  console.log(
-    `[webhook] Processing payment ${transactionId} ` +
-      `for student "${student.fullName}" (${student.id}), ` +
-      `amount: ${amountInKobo} kobo`
-  );
-
-  // TODO: Stage 6 — full reconciliation logic goes here:
-  //   - Find matching unpaid/partial invoices
-  //   - Apply payment to line items by priority order
-  //   - Write Payment doc + ReconciliationEvent
-  //   - Update student.outstandingBalance / creditBalance
-
-  await patchWebhookLogStatus(transactionId, 'processed');
 }
