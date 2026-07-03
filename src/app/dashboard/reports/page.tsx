@@ -11,8 +11,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { getAuth } from 'firebase/auth';
-import { getFirebaseApp } from '@/lib/firebase';
+import { useAuth } from '@/contexts/AuthContext';
 import { kobotoNaira, ALL_CLASSES } from '@/lib/constants';
 import { studentsToCSV } from '@/lib/export';
 import type { ClassReportRow, StudentReportRow } from '@/lib/report-helpers';
@@ -106,6 +105,7 @@ function chartTooltipFormatter(value: any) {
 
 export default function ReportsPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [term, setTerm] = useState<string>(TERMS[0]);
   const [session, setSession] = useState<string>(DEFAULT_SESSION);
   const [data, setData] = useState<ReportData | null>(null);
@@ -116,19 +116,12 @@ export default function ReportsPage() {
   // ── Fetch report data ──────────────────────
 
   const fetchReport = useCallback(async () => {
+    if (!user) return;
+
     setLoading(true);
     setError(null);
 
     try {
-      const app = getFirebaseApp();
-      const auth = getAuth(app);
-      const user = auth.currentUser;
-      if (!user) {
-        setError('Not authenticated');
-        setLoading(false);
-        return;
-      }
-
       const token = await user.getIdToken();
       const params = new URLSearchParams({ term, session });
       const res = await fetch(`/api/reports/summary?${params}`, {
@@ -148,11 +141,14 @@ export default function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  }, [term, session]);
+  }, [user, term, session]);
 
   useEffect(() => {
-    fetchReport();
-  }, [fetchReport]);
+    // Only fetch once auth is resolved and user is available
+    if (!authLoading && user) {
+      fetchReport();
+    }
+  }, [authLoading, user, fetchReport]);
 
   // ── CSV export ─────────────────────────────
 
@@ -188,7 +184,7 @@ export default function ReportsPage() {
 
   // ── Loading state ──────────────────────────
 
-  if (loading && !data) {
+  if ((authLoading || loading) && !data) {
     return (
       <div className="p-6 lg:p-8 space-y-6">
         <div className="flex items-center justify-between">
