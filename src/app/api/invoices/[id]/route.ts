@@ -142,8 +142,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     });
 
     return Response.json({ invoice: result }, { status: 200 });
-  } catch (err: any) {
-    const msg = err.message || '';
+  } catch (err) {
+    const error = err as Error;
+    const msg = error.message || '';
     if (msg.startsWith('404:')) {
       return Response.json({ error: msg.substring(4) }, { status: 404 });
     }
@@ -153,7 +154,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (msg.startsWith('400:')) {
       return Response.json({ error: msg.substring(4) }, { status: 400 });
     }
-    console.error('Invoice edit transaction failed:', err);
-    return Response.json({ error: 'Internal server error', details: msg }, { status: 500 });
+    console.error('Invoice update transaction failed:', error);
+    return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

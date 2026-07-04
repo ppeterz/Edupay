@@ -44,6 +44,7 @@ function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Skip auth listener during SSR / prerender when Firebase isn't configured
     if (!isFirebaseConfigured()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
       return;
     }

@@ -62,11 +62,13 @@ export function usePayments() {
  * Primarily used by detail sheets or slide panels for audit review.
  */
 export async function fetchReconciliationEventForPayment(
-  paymentId: string
+  paymentId: string,
+  schoolId: string
 ): Promise<ReconciliationEvent | null> {
   const db = getFirebaseDb();
   const q = query(
     collection(db, 'reconciliation_events'),
+    where('schoolId', '==', schoolId),
     where('paymentId', '==', paymentId),
     limit(1)
   );

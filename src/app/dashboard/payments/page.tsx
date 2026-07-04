@@ -102,7 +102,7 @@ export default function PaymentsPage() {
     setReconEvent(null);
     setLoadingEvent(true);
     try {
-      const event = await fetchReconciliationEventForPayment(payment.id);
+      const event = await fetchReconciliationEventForPayment(payment.id, payment.schoolId);
       setReconEvent(event);
     } catch (err) {
       console.error('[PaymentsPage] Error loading audit event details:', err);

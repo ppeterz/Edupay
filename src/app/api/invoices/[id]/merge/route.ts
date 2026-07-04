@@ -210,15 +210,16 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     });
 
     return Response.json({ invoice: result }, { status: 200 });
-  } catch (err: any) {
-    const msg = err.message || '';
+  } catch (err) {
+    const error = err as Error;
+    const msg = error.message || '';
     if (msg.startsWith('404:')) {
       return Response.json({ error: msg.substring(4) }, { status: 404 });
     }
     if (msg.startsWith('403:')) {
       return Response.json({ error: msg.substring(4) }, { status: 403 });
     }
-    console.error('Invoice merge transaction failed:', err);
+    console.error('Invoice merge transaction failed:', error);
     return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -26,6 +26,7 @@ export function useStudents() {
 
   useEffect(() => {
     if (!user || !isFirebaseConfigured()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(false);
       return;
     }

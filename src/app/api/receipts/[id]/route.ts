@@ -75,12 +75,19 @@ export async function GET(
     // 5. Generate PDF Buffer
     const buffer = await generateReceiptPdfBuffer(payment, student, invoices, school);
 
+    // Format a clean filename using the student's name
+    const sanitizedStudentName = student.fullName
+      .trim()
+      .replace(/[^a-zA-Z0-9\s-_]/g, '')
+      .replace(/\s+/g, '_');
+    const fileName = sanitizedStudentName ? `${sanitizedStudentName}_receipt.pdf` : 'receipt.pdf';
+
     // 6. Return response stream as application/pdf
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': 'inline; filename="receipt.pdf"',
+        'Content-Disposition': `inline; filename="${fileName}"`,
         'Cache-Control': 'no-store, max-age=0'
       }
     });

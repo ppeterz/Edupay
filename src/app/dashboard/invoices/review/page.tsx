@@ -138,6 +138,7 @@ function ReviewContent() {
   // Pre-fill state when school data arrives/updates
   useEffect(() => {
     if (school?.lastUsedTermSession) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTerm(school.lastUsedTermSession.term);
       setSession(school.lastUsedTermSession.session);
     }
@@ -146,6 +147,7 @@ function ReviewContent() {
   // Automatically trigger loading on page load if term & session are available
   useEffect(() => {
     if (className && school?.lastUsedTermSession?.term && school?.lastUsedTermSession?.session) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadInvoices(school.lastUsedTermSession.term, school.lastUsedTermSession.session);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

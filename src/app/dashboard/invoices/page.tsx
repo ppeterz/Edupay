@@ -145,6 +145,7 @@ export default function InvoicingPage() {
   // Auto-load when term+session are present (including from lastUsedTermSession)
   useEffect(() => {
     if (term && session) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadStats();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -277,7 +278,7 @@ export default function InvoicingPage() {
 
         {!statsMap && !loading && (
           <p className="text-center text-sm text-gray-400 pt-4">
-            Select a term and session above, then click "Load Status" to see invoicing progress.
+            Select a term and session above, then click &quot;Load Status&quot; to see invoicing progress.
           </p>
         )}
       </div>

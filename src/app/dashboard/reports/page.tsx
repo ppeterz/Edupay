@@ -96,7 +96,7 @@ function statusBadge(status: string) {
 
 // ── Chart tooltip formatter ──────────────────
 
-function chartTooltipFormatter(value: any) {
+function chartTooltipFormatter(value: unknown) {
   if (value === undefined || value === null) return '';
   return kobotoNaira(Number(value));
 }
@@ -146,6 +146,7 @@ export default function ReportsPage() {
   useEffect(() => {
     // Only fetch once auth is resolved and user is available
     if (!authLoading && user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchReport();
     }
   }, [authLoading, user, fetchReport]);

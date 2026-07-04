@@ -168,8 +168,12 @@ export default function CreateBulkInvoicePage() {
   }, [user]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (targetValue) fetchCount(targetType, targetValue);
-    else { setStudentCount(null); setClassCount(null); }
+    else {
+      setStudentCount(null);
+      setClassCount(null);
+    }
   }, [targetType, targetValue, fetchCount]);
 
   // ── Line item operations ───────────────────

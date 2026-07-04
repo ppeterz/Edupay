@@ -19,14 +19,45 @@ import {
 import { uploadPdfToCloudinary } from './cloudinary';
 import type { Payment, Student, Invoice, School } from '@/types';
 import { kobotoNaira } from './constants';
+import path from "path";
+import fs from "fs";
+
+const regularFont = path.join(
+  process.cwd(),
+  "public",
+  "fonts",
+  "Roboto-Regular.ttf"
+);
+
+const boldFont = path.join(
+  process.cwd(),
+  "public",
+  "fonts",
+  "Roboto-Bold.ttf"
+);
+
+// Verify fonts exist
+if (!fs.existsSync(regularFont)) {
+  throw new Error(`Missing font: ${regularFont}`);
+}
+
+if (!fs.existsSync(boldFont)) {
+  throw new Error(`Missing font: ${boldFont}`);
+}
 
 // Register Roboto font to support the Naira symbol (U+20A6)
 Font.register({
-  family: 'Roboto',
+  family: "Roboto",
   fonts: [
-    { src: 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/Roboto-Regular.ttf' },
-    { src: 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/Roboto-Bold.ttf', fontWeight: 'bold' }
-  ]
+    {
+      src: regularFont,
+      fontWeight: "normal",
+    },
+    {
+      src: boldFont,
+      fontWeight: "bold",
+    },
+  ],
 });
 
 /**
@@ -368,7 +399,6 @@ const styles = StyleSheet.create({
     fontSize: 9.5,
     color: '#1e293b',
     fontFamily: 'Roboto',
-    fontWeight: 'bold',
   },
   tableContainer: {
     paddingHorizontal: 30,
