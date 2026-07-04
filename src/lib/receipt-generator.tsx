@@ -23,12 +23,15 @@ import { kobotoNaira } from './constants';
  * Generate a PDF receipt for a processed payment, upload to Firebase Storage,
  * and return the public URL.
  */
-export async function generateReceipt(
+/**
+ * Render the PDF receipt to a Buffer.
+ */
+export async function generateReceiptPdfBuffer(
   payment: Payment,
   student: Student,
   invoice: Invoice,
   school: School
-): Promise<string> {
+): Promise<Buffer> {
   const receiptNumber = `RCP-${payment.id.slice(0, 8).toUpperCase()}`;
   const dateStr = payment.processedAt ?? payment.createdAt;
 
@@ -111,14 +114,45 @@ export async function generateReceipt(
     </Document>
   );
 
-  // Render to PDF buffer
-  const buffer = await renderToBuffer(doc);
+  const pdfStreamBuffer = await renderToBuffer(doc);
+  return Buffer.from(pdfStreamBuffer);
+}
 
-  // Upload to Cloudinary
-  const publicId = `receipts/${student.schoolId}/${student.id}/${payment.id}`;
-  const secureUrl = await uploadPdfToCloudinary(Buffer.from(buffer), publicId);
+/**
+ * Generate a PDF receipt for a processed payment, upload to Cloudinary (if configured),
+ * or fallback to local receipt URL.
+ */
+export async function generateReceipt(
+  payment: Payment,
+  student: Student,
+  invoice: Invoice,
+  school: School
+): Promise<string> {
+  const localFallbackUrl = `/api/receipts/${payment.id}`;
 
-  return secureUrl;
+  try {
+    const buffer = await generateReceiptPdfBuffer(payment, student, invoice, school);
+
+    const publicId = `receipts/${student.schoolId}/${student.id}/${payment.id}`;
+    const secureUrl = await uploadPdfToCloudinary(buffer, publicId);
+
+    // If secureUrl is the Cloudinary placeholder domain, we prefer our local fallback URL
+    if (secureUrl.includes('placeholder-cloud') || !secureUrl) {
+      console.warn(
+        '[receipt-generator] Cloudinary upload failed, falling back to on-demand generation: ' +
+          'Cloudinary is not configured or returned a placeholder URL.'
+      );
+      return localFallbackUrl;
+    }
+
+    return secureUrl;
+  } catch (err) {
+    console.warn(
+      '[receipt-generator] Cloudinary upload failed, falling back to on-demand generation: ' +
+        (err instanceof Error ? err.message : String(err))
+    );
+    return localFallbackUrl;
+  }
 }
 
 // ── PDF Styles ──────────────────────────────

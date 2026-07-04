@@ -70,6 +70,25 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  // 4b. Check for duplicate invoice (same student + term + session)
+  const existing = await adminDb
+    .collection('invoices')
+    .where('studentId', '==', studentId)
+    .where('term', '==', term)
+    .where('session', '==', session)
+    .limit(1)
+    .get();
+
+  if (!existing.empty) {
+    return Response.json(
+      {
+        error: 'This student already has an invoice for this term and session',
+        existingInvoiceId: existing.docs[0].id,
+      },
+      { status: 409 }
+    );
+  }
+
   // 5. Convert line items to kobo and assign IDs
   const processedLineItems: InvoiceLineItem[] = lineItems.map((li) => ({
     id: adminDb.collection('_').doc().id,

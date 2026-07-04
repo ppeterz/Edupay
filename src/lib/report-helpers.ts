@@ -68,6 +68,7 @@ export function buildClassReport(
 
 /**
  * Build per-student outstanding report from invoice data.
+ * Groups by studentId and sums outstanding across all their invoices.
  * Sorted descending by outstanding balance (worst offenders first).
  */
 export function buildStudentReport(
@@ -75,21 +76,34 @@ export function buildStudentReport(
   students: Student[]
 ): StudentReportRow[] {
   const studentsById = new Map(students.map((s) => [s.id, s]));
+  const byStudent = new Map<string, StudentReportRow>();
 
-  return invoices
-    .filter((inv) => inv.outstandingBalance > 0)
-    .map((inv) => {
-      const student = studentsById.get(inv.studentId);
-      if (!student) return null;
-      return {
+  for (const inv of invoices) {
+    const student = studentsById.get(inv.studentId);
+    if (!student) continue;
+
+    const existing = byStudent.get(student.id);
+    if (existing) {
+      // Student has multiple invoices for this term/session — sum them
+      existing.outstanding += inv.outstandingBalance;
+      // status: reflect the worse status across invoices
+      if (inv.status === 'unpaid' && existing.status !== 'unpaid')
+        existing.status = 'unpaid';
+      else if (inv.status === 'partial' && existing.status === 'paid')
+        existing.status = 'partial';
+    } else {
+      byStudent.set(student.id, {
         studentId: student.id,
         fullName: student.fullName,
         class: student.class,
         outstanding: inv.outstandingBalance,
         status: inv.status,
-      };
-    })
-    .filter((r): r is StudentReportRow => r !== null)
+      });
+    }
+  }
+
+  return Array.from(byStudent.values())
+    .filter((r) => r.outstanding > 0)
     .sort((a, b) => b.outstanding - a.outstanding);
 }
 

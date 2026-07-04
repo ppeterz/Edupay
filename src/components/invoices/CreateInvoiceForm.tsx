@@ -8,6 +8,7 @@
 // server does the nairaToKobo() conversion (single source of truth).
 
 import { useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { getFirebaseAuth } from '@/lib/firebase';
 import { kobotoNaira, nairaToKobo } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
@@ -20,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Plus, Trash2, AlertCircle } from 'lucide-react';
 import type { Invoice } from '@/types';
 
 // ── Props ────────────────────────────────────
@@ -84,6 +85,7 @@ export function CreateInvoiceForm({
   );
   const [formState, setFormState] = useState<FormState>('idle');
   const [error, setError] = useState('');
+  const [duplicateInvoiceId, setDuplicateInvoiceId] = useState<string | null>(null);
 
   // ── Running total (live) ───────────────────
 
@@ -156,6 +158,7 @@ export function CreateInvoiceForm({
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
+    setDuplicateInvoiceId(null);
 
     const validationError = validate();
     if (validationError) {
@@ -194,6 +197,14 @@ export function CreateInvoiceForm({
 
       if (!res.ok) {
         const data = await res.json();
+
+        // Handle duplicate invoice (409 Conflict)
+        if (res.status === 409 && data.existingInvoiceId) {
+          setDuplicateInvoiceId(data.existingInvoiceId);
+          setFormState('error');
+          return;
+        }
+
         setError(data.error ?? 'Failed to create invoice');
         setFormState('error');
         return;
@@ -346,8 +357,33 @@ export function CreateInvoiceForm({
         </span>
       </div>
 
+      {/* Duplicate invoice notice */}
+      {duplicateInvoiceId && (
+        <div
+          className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+          role="alert"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <div>
+            <p className="font-medium">
+              This student already has an invoice for {term} — {session}.
+            </p>
+            <p className="mt-1 text-amber-700">
+              You can update line items or amounts on the existing invoice using
+              the merge feature.
+            </p>
+            <Link
+              href={`/dashboard/students/${studentId}#invoice-${duplicateInvoiceId}`}
+              className="mt-2 inline-block font-medium text-amber-900 underline underline-offset-2 hover:text-amber-950"
+            >
+              View existing invoice →
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Error */}
-      {error && (
+      {error && !duplicateInvoiceId && (
         <p className="text-sm text-destructive" role="alert">
           {error}
         </p>

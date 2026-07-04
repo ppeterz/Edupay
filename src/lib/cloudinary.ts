@@ -27,40 +27,44 @@ if (isConfigured) {
   );
 }
 
-/**
- * Upload a PDF buffer to Cloudinary and return the public secure URL.
- * If credentials are not set, returns a placeholder URL.
- */
 export async function uploadPdfToCloudinary(
   buffer: Buffer,
   publicId: string
 ): Promise<string> {
+  const placeholderUrl = `https://res.cloudinary.com/placeholder-cloud/image/upload/v1/receipts-offline/${publicId}.pdf`;
+
   if (!isConfigured) {
     // Generate a secure placeholder that can represent the link
     // formatted: /receipts-offline/{publicId}.pdf
-    return `https://res.cloudinary.com/placeholder-cloud/image/upload/v1/receipts-offline/${publicId}.pdf`;
+    return placeholderUrl;
   }
 
-  return new Promise((resolve, reject) => {
-    const uploadStream = cloudinary.uploader.upload_stream(
-      {
-        resource_type: 'raw', // PDF must be uploaded as a 'raw' file in Cloudinary
-        public_id: publicId,
-        format: 'pdf',
-      },
-      (error, result) => {
-        if (error) {
-          console.error('[cloudinary] Upload error:', error);
-          return reject(error);
+  try {
+    return await new Promise((resolve) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          resource_type: 'raw', // PDF must be uploaded as a 'raw' file in Cloudinary
+          public_id: publicId,
+          format: 'pdf',
+        },
+        (error, result) => {
+          if (error) {
+            console.error('[cloudinary] Upload error:', error);
+            console.warn('[cloudinary] Falling back to placeholder URL:', placeholderUrl);
+            return resolve(placeholderUrl);
+          }
+          resolve(result?.secure_url || placeholderUrl);
         }
-        resolve(result?.secure_url || '');
-      }
-    );
+      );
 
-    const readable = new Readable();
-    readable._read = () => {};
-    readable.push(buffer);
-    readable.push(null);
-    readable.pipe(uploadStream);
-  });
+      const readable = new Readable();
+      readable._read = () => {};
+      readable.push(buffer);
+      readable.push(null);
+      readable.pipe(uploadStream);
+    });
+  } catch (err) {
+    console.error('[cloudinary] Safe wrapper upload catch:', err);
+    return placeholderUrl;
+  }
 }
