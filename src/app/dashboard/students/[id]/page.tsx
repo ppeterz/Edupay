@@ -37,7 +37,7 @@ export default function StudentDetailPage() {
   const router = useRouter();
   const params = useParams();
   const studentId = params.id as string;
-  const { user } = useAuth();
+  const { user, school } = useAuth();
 
   const [student, setStudent] = useState<Student | null>(null);
   const [loading, setLoading] = useState(true);
@@ -262,7 +262,13 @@ export default function StudentDetailPage() {
           ) : (
             <div className="space-y-4">
               {invoices.map((inv) => (
-                <InvoiceCard key={inv.id} invoice={inv} onEdit={setEditingInvoice} />
+                <InvoiceCard
+                  key={inv.id}
+                  invoice={inv}
+                  student={student}
+                  schoolName={school?.name || 'School'}
+                  onEdit={setEditingInvoice}
+                />
               ))}
             </div>
           )}

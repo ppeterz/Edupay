@@ -551,11 +551,12 @@ async function scenario13_multiInvoiceSettlement() {
   console.log('\n--- Scenario 13: Multi-invoice settlement (₦60,000 across 2 invoices) ---');
   const { id: studentId, accountRef } = await createStudent({ outstandingBalance: 6000000 });
 
-  // First Term: ₦10,000 remaining (created earlier)
+  // First Term: ₦40,000 already paid, ₦10,000 remaining (created earlier)
   const { id: invoiceA } = await createInvoice(studentId, 'school-st6-edge', {
     lineItems: [
-      { id: 'li-1', description: 'Tuition', amountDue: 1000000, amountPaid: 0, priority: 1, status: 'unpaid' },
+      { id: 'li-1', description: 'Tuition', amountDue: 5000000, amountPaid: 4000000, priority: 1, status: 'partial' },
     ],
+    status: 'partial',
     overrides: {
       term: 'First Term',
       session: '2026/2027',
@@ -568,6 +569,7 @@ async function scenario13_multiInvoiceSettlement() {
     lineItems: [
       { id: 'li-2', description: 'Tuition', amountDue: 5000000, amountPaid: 0, priority: 1, status: 'unpaid' },
     ],
+    status: 'unpaid',
     overrides: {
       term: 'Second Term',
       session: '2026/2027',
@@ -582,12 +584,23 @@ async function scenario13_multiInvoiceSettlement() {
   const invA = await pollInvoiceOutstanding(invoiceA, 0);
   const invB = await pollInvoiceOutstanding(invoiceB, 0);
   const student = await pollStudentCredit(studentId, 0);
-  const payments = await pollPaymentProcessed(txnId);
+  
+  // Poll until payment is processed and receiptUrl is populated
+  let payments = [];
+  const startPoll = Date.now();
+  while (Date.now() - startPoll < 5000) {
+    payments = await getPaymentByTxnId(txnId);
+    if (payments.length === 1 && payments[0].paymentStatus === 'processed' && payments[0].receiptUrl) {
+      break;
+    }
+    await sleep(200);
+  }
 
   assert('Invoice A status', invA?.status, 'paid');
   assert('Invoice A outstandingBalance', invA?.outstandingBalance, 0);
   assert('Invoice B status', invB?.status, 'paid');
   assert('Invoice B outstandingBalance', invB?.outstandingBalance, 0);
+  assert('Student outstandingBalance becomes 0', student?.outstandingBalance, 0);
   assert('Student creditBalance stays 0', student?.creditBalance, 0);
   assertTrue('Exactly 1 payment document', payments.length === 1, `(found ${payments.length})`);
 
@@ -598,6 +611,16 @@ async function scenario13_multiInvoiceSettlement() {
     // Allocations should contain entries tagged with both invoice IDs
     const allocInvoiceIds = [...new Set((p.allocations || []).map((a) => a.invoiceId))];
     assertTrue('Allocations reference both invoices', allocInvoiceIds.length === 2, `(found ${allocInvoiceIds.length}: ${allocInvoiceIds.join(', ')})`);
+
+    // Check reconciliation events
+    const events = await getEventsByPaymentId(p.id);
+    assert('Exactly 1 reconciliation event', events.length, 1);
+    if (events[0]) {
+      assert('Reconciliation event eventType is full_payment', events[0].eventType, 'full_payment');
+    }
+
+    assertTrue('Payment has a generated receipt URL', !!p.receiptUrl);
+    console.log(`  ℹ️ Generated Receipt PDF URL: ${p.receiptUrl || 'None'}`);
   }
 }
 

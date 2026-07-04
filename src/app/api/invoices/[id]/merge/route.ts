@@ -89,6 +89,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  // Block updates if invoice is already paid or overpaid
+  if (invoice.status === 'paid' || invoice.status === 'overpaid') {
+    return badRequest('Paid or overpaid invoices cannot be edited');
+  }
+
   // Validate all updateLineItems reference existing line items
   const lineItemIds = new Set(invoice.lineItems.map((li) => li.id));
   for (const u of updateLineItems) {
@@ -128,6 +133,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
       const freshInvoice = freshInvoiceDoc.data() as Invoice;
       if (freshInvoice.schoolId !== decoded.uid) throw new Error('403:Forbidden');
+
+      // Double-check inside transaction
+      if (freshInvoice.status === 'paid' || freshInvoice.status === 'overpaid') {
+        throw new Error('400:Paid or overpaid invoices cannot be edited');
+      }
 
       const studentRef = adminDb.collection('students').doc(freshInvoice.studentId);
       const studentDoc = await tx.get(studentRef);

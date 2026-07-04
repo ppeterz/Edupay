@@ -25,6 +25,7 @@ interface InvoiceEditActionsProps {
 
 export function InvoiceEditActions({ student, onSuccess }: InvoiceEditActionsProps) {
   const inv = student.existingInvoice as Invoice;
+  const isPaid = inv.status === 'paid' || inv.status === 'overpaid';
 
   // Editable state per line item: keyed by lineItemId
   const [amounts, setAmounts] = useState<Record<string, string>>(() =>
@@ -38,6 +39,8 @@ export function InvoiceEditActions({ student, onSuccess }: InvoiceEditActionsPro
   const [errorMsg, setErrorMsg] = useState('');
 
   async function handleApply() {
+    if (isPaid) return;
+    
     // Build updateLineItems — only include actually-changed fields
     const updateLineItems: { lineItemId: string; newAmountDue?: number; newPriority?: number }[] = [];
 
@@ -106,6 +109,14 @@ export function InvoiceEditActions({ student, onSuccess }: InvoiceEditActionsPro
 
   return (
     <div className="space-y-3">
+      {/* Paid notice */}
+      {isPaid && (
+        <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 font-medium">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+          This invoice is fully paid and its line items cannot be changed.
+        </div>
+      )}
+
       {/* Current invoice summary */}
       <div className="overflow-hidden rounded-md border border-gray-200 bg-white text-sm">
         <table className="w-full">
@@ -123,13 +134,14 @@ export function InvoiceEditActions({ student, onSuccess }: InvoiceEditActionsPro
                 <td className="px-3 py-2 text-gray-800">{li.description}</td>
                 <td className="px-3 py-2 text-center">
                   <Input
-                    className="h-7 w-14 bg-white text-center text-xs mx-auto"
+                    className="h-7 w-14 bg-white text-center text-xs mx-auto disabled:bg-gray-100 disabled:text-gray-500"
                     type="number"
                     min="1"
                     value={priorities[li.id] ?? ''}
                     onChange={(e) =>
                       setPriorities((prev) => ({ ...prev, [li.id]: e.target.value }))
                     }
+                    disabled={isPaid || status === 'loading'}
                   />
                 </td>
                 <td className="px-3 py-2 text-right">
@@ -138,7 +150,7 @@ export function InvoiceEditActions({ student, onSuccess }: InvoiceEditActionsPro
                       ₦
                     </span>
                     <Input
-                      className="h-7 bg-white pl-5 text-xs text-right"
+                      className="h-7 bg-white pl-5 text-xs text-right disabled:bg-gray-100 disabled:text-gray-500"
                       type="number"
                       min="0.01"
                       step="0.01"
@@ -146,6 +158,7 @@ export function InvoiceEditActions({ student, onSuccess }: InvoiceEditActionsPro
                       onChange={(e) =>
                         setAmounts((prev) => ({ ...prev, [li.id]: e.target.value }))
                       }
+                      disabled={isPaid || status === 'loading'}
                     />
                   </div>
                 </td>
@@ -165,18 +178,20 @@ export function InvoiceEditActions({ student, onSuccess }: InvoiceEditActionsPro
         </div>
       )}
 
-      <div className="flex justify-end">
-        <Button size="sm" onClick={handleApply} disabled={status === 'loading'}>
-          {status === 'loading' ? (
-            <>
-              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-              Saving…
-            </>
-          ) : (
-            'Save Changes'
-          )}
-        </Button>
-      </div>
+      {!isPaid && (
+        <div className="flex justify-end">
+          <Button size="sm" onClick={handleApply} disabled={status === 'loading'}>
+            {status === 'loading' ? (
+              <>
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                Saving…
+              </>
+            ) : (
+              'Save Changes'
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
