@@ -1,8 +1,8 @@
 // ──────────────────────────────────────────────
-// EduPay — PDF Receipt Generator (Stage 8)
+// EduPay — PDF Receipt Generator (Stage 8 → Multi-Invoice)
 // ──────────────────────────────────────────────
 // Generates a styled PDF receipt for a processed payment and uploads
-// it to Firebase Storage. Returns the public URL.
+// it to Cloudinary. Returns the public URL.
 //
 // IMPORTANT: This file uses .tsx because @react-pdf/renderer requires
 // JSX for its <Document>, <Page>, <Text>, <View> components.
@@ -20,20 +20,20 @@ import type { Payment, Student, Invoice, School } from '@/types';
 import { kobotoNaira } from './constants';
 
 /**
- * Generate a PDF receipt for a processed payment, upload to Firebase Storage,
- * and return the public URL.
- */
-/**
  * Render the PDF receipt to a Buffer.
+ * Accepts an array of invoices to support multi-invoice payments.
  */
 export async function generateReceiptPdfBuffer(
   payment: Payment,
   student: Student,
-  invoice: Invoice,
+  invoices: Invoice[],
   school: School
 ): Promise<Buffer> {
   const receiptNumber = `RCP-${payment.id.slice(0, 8).toUpperCase()}`;
   const dateStr = payment.processedAt ?? payment.createdAt;
+
+  // Calculate total outstanding across all invoices
+  const totalOutstanding = invoices.reduce((sum, inv) => sum + inv.outstandingBalance, 0);
 
   const doc = (
     <Document>
@@ -68,26 +68,39 @@ export async function generateReceiptPdfBuffer(
           )}
         </View>
 
-        {/* Allocation Breakdown */}
-        {payment.allocations.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Allocation Breakdown</Text>
-            {/* Table Header */}
-            <View style={styles.tableHeaderRow}>
-              <Text style={styles.tableHeaderLeft}>Description</Text>
-              <Text style={styles.tableHeaderRight}>Amount</Text>
-            </View>
-            {/* Table Rows */}
-            {payment.allocations.map((a, index) => (
-              <View key={index} style={styles.row}>
-                <Text style={styles.rowLeft}>{a.description}</Text>
-                <Text style={styles.rowRight}>
-                  {kobotoNaira(a.amountAllocated)}
-                </Text>
+        {/* Allocation Breakdown — one section per invoice */}
+        {invoices.map((invoice) => {
+          const invoiceAllocations = payment.allocations.filter(
+            (a) => a.invoiceId === invoice.id
+          );
+          if (invoiceAllocations.length === 0) return null;
+
+          return (
+            <View key={invoice.id} style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                {invoice.term} — {invoice.session}
+              </Text>
+              {/* Table Header */}
+              <View style={styles.tableHeaderRow}>
+                <Text style={styles.tableHeaderLeft}>Description</Text>
+                <Text style={styles.tableHeaderRight}>Amount</Text>
               </View>
-            ))}
-          </View>
-        )}
+              {/* Table Rows */}
+              {invoiceAllocations.map((a, index) => (
+                <View key={index} style={styles.row}>
+                  <Text style={styles.rowLeft}>{a.description}</Text>
+                  <Text style={styles.rowRight}>
+                    {kobotoNaira(a.amountAllocated)}
+                  </Text>
+                </View>
+              ))}
+              <Text style={styles.rowMuted}>
+                {invoice.term} outstanding after this payment:{' '}
+                {kobotoNaira(invoice.outstandingBalance)}
+              </Text>
+            </View>
+          );
+        })}
 
         {/* Summary */}
         <View style={styles.divider} />
@@ -99,9 +112,9 @@ export async function generateReceiptPdfBuffer(
             </Text>
           </View>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Outstanding Balance:</Text>
+            <Text style={styles.summaryLabel}>Total Outstanding Balance:</Text>
             <Text style={styles.summaryValue}>
-              {kobotoNaira(invoice.outstandingBalance)}
+              {kobotoNaira(totalOutstanding)}
             </Text>
           </View>
         </View>
@@ -125,13 +138,13 @@ export async function generateReceiptPdfBuffer(
 export async function generateReceipt(
   payment: Payment,
   student: Student,
-  invoice: Invoice,
+  invoices: Invoice[],
   school: School
 ): Promise<string> {
   const localFallbackUrl = `/api/receipts/${payment.id}`;
 
   try {
-    const buffer = await generateReceiptPdfBuffer(payment, student, invoice, school);
+    const buffer = await generateReceiptPdfBuffer(payment, student, invoices, school);
 
     const publicId = `receipts/${student.schoolId}/${student.id}/${payment.id}`;
     const secureUrl = await uploadPdfToCloudinary(buffer, publicId);
@@ -238,6 +251,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#1e293b',
     textAlign: 'right',
+  },
+  rowMuted: {
+    fontSize: 10,
+    color: '#94a3b8',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   summaryRow: {
     flexDirection: 'row',

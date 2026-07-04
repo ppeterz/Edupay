@@ -132,6 +132,15 @@ export async function POST(request: NextRequest) {
     });
   });
 
-  // 9. Return created invoice
+  // 9. Update lastUsedTermSession on school doc (non-critical, Admin SDK)
+  try {
+    await adminDb.collection('schools').doc(decoded.uid).update({
+      lastUsedTermSession: { term, session },
+    });
+  } catch (err) {
+    console.error('[invoice/create] Failed to update lastUsedTermSession:', err);
+  }
+
+  // 10. Return created invoice
   return Response.json({ invoice }, { status: 201 });
 }

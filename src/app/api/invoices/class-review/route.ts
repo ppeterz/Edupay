@@ -43,17 +43,28 @@ export async function GET(request: NextRequest) {
     return Response.json({ students: [] });
   }
 
-  // 4. Fetch invoices for these students
+  // 4. Fetch invoices for these students (in chunks of 30 due to Firestore 'in' limit)
   const studentIds = students.map((s) => s.id);
-  const invoicesSnapshot = await adminDb
-    .collection('invoices')
-    .where('schoolId', '==', schoolId)
-    .where('term', '==', term)
-    .where('session', '==', session)
-    .where('studentId', 'in', studentIds)
-    .get();
+  const invoicePromises = [];
+  const chunkSize = 30;
 
-  const invoices = invoicesSnapshot.docs.map((doc) => doc.data() as Invoice);
+  for (let i = 0; i < studentIds.length; i += chunkSize) {
+    const chunk = studentIds.slice(i, i + chunkSize);
+    invoicePromises.push(
+      adminDb
+        .collection('invoices')
+        .where('schoolId', '==', schoolId)
+        .where('term', '==', term)
+        .where('session', '==', session)
+        .where('studentId', 'in', chunk)
+        .get()
+    );
+  }
+
+  const invoiceSnapshots = await Promise.all(invoicePromises);
+  const invoices = invoiceSnapshots.flatMap((snap) =>
+    snap.docs.map((doc) => doc.data() as Invoice)
+  );
 
   // 5. Match students to invoices
   const results = students.map((student) => {

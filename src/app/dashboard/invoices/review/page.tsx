@@ -3,13 +3,18 @@
 // ──────────────────────────────────────────────
 // EduPay — Class Invoice Review Page
 // ──────────────────────────────────────────────
-// Dedicated page to review and modify generated student invoices for a class.
+// Per-class review table — shows all students with invoices for a given
+// term/session, grouped by payment status (Paid / Partial / Unpaid).
+// Uses the shared StudentInvoiceTable with InvoiceEditActions injected.
 
-import { Suspense, useState } from 'react';
+import { Suspense, useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { getFirebaseAuth } from '@/lib/firebase';
-import { SkippedStudentReview } from '@/components/invoices/SkippedStudentReview';
-import type { SkippedClassGroup } from '@/lib/invoice-helpers';
+import { getFirebaseDb, getFirebaseAuth } from '@/lib/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { useAuth } from '@/contexts/AuthContext';
+import { StudentInvoiceTable } from '@/components/invoices/StudentInvoiceTable';
+import { InvoiceEditActions } from '@/components/invoices/InvoiceEditActions';
+import type { StudentWithInvoice } from '@/components/invoices/StudentInvoiceTable';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,18 +33,67 @@ const TERM_OPTIONS = ['First Term', 'Second Term', 'Third Term'];
 function ReviewContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { user, school } = useAuth();
   const className = searchParams.get('class') || '';
 
-  const [term, setTerm] = useState('First Term');
-  const [session, setSession] = useState('2025/2026');
+  const lastUsed = school?.lastUsedTermSession;
+  const [term, setTerm] = useState(lastUsed?.term ?? 'First Term');
+  const [session, setSession] = useState(lastUsed?.session ?? '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [reviewData, setReviewData] = useState<SkippedClassGroup[] | null>(null);
+  const [students, setStudents] = useState<StudentWithInvoice[] | null>(null);
 
-  async function loadInvoices() {
+  // unique sessions state
+  const [availableSessions, setAvailableSessions] = useState<string[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+
+  // Fetch unique sessions from existing invoices
+  useEffect(() => {
+    async function fetchSessions() {
+      if (!user) return;
+      setSessionsLoading(true);
+      try {
+        const db = getFirebaseDb();
+        const snap = await getDocs(
+          query(
+            collection(db, 'invoices'),
+            where('schoolId', '==', user.uid)
+          )
+        );
+        const sessions = new Set<string>();
+        snap.forEach((doc) => {
+          const s = doc.data().session;
+          if (s) sessions.add(s);
+        });
+        setAvailableSessions(Array.from(sessions));
+      } catch (err) {
+        console.error('Failed to fetch unique sessions:', err);
+      } finally {
+        setSessionsLoading(false);
+      }
+    }
+    fetchSessions();
+  }, [user]);
+
+  // Combine unique sessions + last used + default sessions as fallback
+  const sessionsList = useMemo(() => {
+    const set = new Set<string>(availableSessions);
+    if (lastUsed?.session) {
+      set.add(lastUsed.session);
+    }
+    if (set.size === 0) {
+      set.add('2024/2025');
+      set.add('2025/2026');
+      set.add('2026/2027');
+    }
+    return Array.from(set).sort().reverse();
+  }, [availableSessions, lastUsed]);
+
+  const loadInvoices = useCallback(async (targetTerm = term, targetSession = session) => {
     if (!className) return;
     setLoading(true);
     setError('');
+    setStudents(null);
 
     try {
       const auth = getFirebaseAuth();
@@ -51,16 +105,8 @@ function ReviewContent() {
       }
 
       const res = await fetch(
-        `/api/invoices/class-review?class=${encodeURIComponent(
-          className
-        )}&term=${encodeURIComponent(term)}&session=${encodeURIComponent(
-          session
-        )}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+        `/api/invoices/class-review?class=${encodeURIComponent(className)}&term=${encodeURIComponent(targetTerm)}&session=${encodeURIComponent(targetSession)}`,
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (!res.ok) {
@@ -71,36 +117,39 @@ function ReviewContent() {
       }
 
       const data = await res.json();
-      const list = data.students || [];
+      const list: { studentId: string; studentName: string; class: string; existingInvoice: unknown }[] = data.students ?? [];
 
-      // Filter to only students who have invoices
-      const hasInvoice = list.filter((s: any) => s.existingInvoice !== null);
+      const withInvoices = list.filter((s) => s.existingInvoice !== null) as StudentWithInvoice[];
 
-      if (hasInvoice.length === 0) {
+      if (withInvoices.length === 0) {
         setError('No invoices found for this class, term, and session.');
         setLoading(false);
         return;
       }
 
-      const grouped: SkippedClassGroup[] = [
-        {
-          className: className,
-          students: hasInvoice.map((s: any) => ({
-            studentId: s.studentId,
-            studentName: s.studentName,
-            class: s.class,
-            existingInvoice: s.existingInvoice,
-          })),
-        },
-      ];
-
-      setReviewData(grouped);
+      setStudents(withInvoices);
     } catch {
       setError('Connection failed. Please check your internet connection.');
     } finally {
       setLoading(false);
     }
-  }
+  }, [className, term, session]);
+
+  // Pre-fill state when school data arrives/updates
+  useEffect(() => {
+    if (school?.lastUsedTermSession) {
+      setTerm(school.lastUsedTermSession.term);
+      setSession(school.lastUsedTermSession.session);
+    }
+  }, [school]);
+
+  // Automatically trigger loading on page load if term & session are available
+  useEffect(() => {
+    if (className && school?.lastUsedTermSession?.term && school?.lastUsedTermSession?.session) {
+      loadInvoices(school.lastUsedTermSession.term, school.lastUsedTermSession.session);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [className, school]);
 
   if (!className) {
     return (
@@ -114,19 +163,13 @@ function ReviewContent() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button
           variant="outline"
           size="icon"
-          onClick={() => {
-            if (reviewData) {
-              setReviewData(null);
-            } else {
-              router.push('/dashboard/invoices');
-            }
-          }}
+          onClick={() => (students ? setStudents(null) : router.push('/dashboard/invoices'))}
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -135,27 +178,49 @@ function ReviewContent() {
             Invoice Review — {className}
           </h1>
           <p className="text-sm text-gray-500">
-            Review and selectively update existing student invoices and their priorities
+            Review and selectively update existing student invoices
           </p>
         </div>
       </div>
 
-      {reviewData ? (
-        <Card>
-          <CardContent className="pt-6">
-            <SkippedStudentReview
-              skippedByClass={reviewData}
-              onDone={() => router.push('/dashboard/invoices')}
-            />
-          </CardContent>
-        </Card>
+      {students ? (
+        /* Review table */
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-600">
+              Showing <span className="font-medium">{students.length}</span> students with invoices for{' '}
+              <span className="font-medium">{term} — {session}</span>
+            </p>
+            <Button variant="outline" size="sm" onClick={() => setStudents(null)}>
+              Change term/session
+            </Button>
+          </div>
+
+          <StudentInvoiceTable
+            students={students}
+            groupingKey="paymentStatus"
+            actionsComponent={(student) => (
+              <InvoiceEditActions student={student} />
+            )}
+          />
+
+          <Button variant="outline" onClick={() => router.push('/dashboard/invoices')}>
+            Done
+          </Button>
+        </div>
       ) : (
+        /* Term/session selector */
         <Card>
           <CardContent className="space-y-6 pt-6">
             <div className="rounded-md border border-gray-100 bg-gray-50 p-4">
               <p className="text-sm text-gray-600">
-                Specify the term and session to retrieve the generated student invoices
-                for <span className="font-semibold">{className}</span>.
+                Specify the term and session to retrieve generated student invoices for{' '}
+                <span className="font-semibold">{className}</span>.
+                {lastUsed && (
+                  <span className="block mt-1 text-xs text-gray-400">
+                    Pre-filled from your last invoice action.
+                  </span>
+                )}
               </p>
             </div>
 
@@ -168,9 +233,7 @@ function ReviewContent() {
                   </SelectTrigger>
                   <SelectContent>
                     {TERM_OPTIONS.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
-                      </SelectItem>
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -178,12 +241,23 @@ function ReviewContent() {
 
               <div className="space-y-2">
                 <Label htmlFor="review-session">Session</Label>
-                <Input
-                  id="review-session"
-                  placeholder="2025/2026"
-                  value={session}
-                  onChange={(e) => setSession(e.target.value)}
-                />
+                {sessionsLoading ? (
+                  <div className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Loading sessions…
+                  </div>
+                ) : (
+                  <Select value={session} onValueChange={setSession}>
+                    <SelectTrigger id="review-session">
+                      <SelectValue placeholder="Select session" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sessionsList.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </div>
 
@@ -202,11 +276,11 @@ function ReviewContent() {
               >
                 Cancel
               </Button>
-              <Button onClick={loadInvoices} disabled={loading}>
+              <Button onClick={() => loadInvoices()} disabled={loading || !session}>
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Loading Invoices…
+                    Loading…
                   </>
                 ) : (
                   'Load Invoices'
@@ -222,12 +296,16 @@ function ReviewContent() {
 
 export default function ReviewPage() {
   return (
-    <Suspense fallback={
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    }>
-      <ReviewContent />
-    </Suspense>
+    <div className="p-6 lg:p-8 max-w-4xl mx-auto">
+      <Suspense
+        fallback={
+          <div className="flex h-screen items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        }
+      >
+        <ReviewContent />
+      </Suspense>
+    </div>
   );
 }

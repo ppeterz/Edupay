@@ -4,6 +4,12 @@
 // Creates invoices for an entire class or class category.
 // Skips students who already have an invoice for the target term/session.
 // Uses batched writes chunked at 200 students (400 ops) per batch.
+//
+// After the batch commits:
+//   1. Persists a trimmed run summary to bulk_invoice_runs (Admin SDK).
+//      If that write fails it is logged but does NOT fail the request.
+//   2. Updates lastUsedTermSession on the school document (non-critical).
+// Returns runId (null on persistence failure) alongside the full inline payload.
 
 import { NextRequest } from 'next/server';
 import { verifyAuthToken, unauthorized, badRequest } from '@/lib/auth-helpers';
@@ -121,7 +127,8 @@ export async function POST(request: NextRequest) {
 
   const bulkTemplate = { term, session, lineItems: baseLineItems };
 
-  // Enrich skipped students with their existing invoice (for review UI)
+  // Enrich skipped students — trim existingInvoice to { id, lineItems } only
+  // (diff logic needs lineItems; other fields would bloat the run doc)
   const skippedWithInvoices: SkippedStudentEntry[] = skippedStudents.map((student) => {
     const idx = students.findIndex((s) => s.id === student.id);
     const existingInvoice = existingChecks[idx].docs[0].data() as Invoice;
@@ -129,27 +136,45 @@ export async function POST(request: NextRequest) {
       studentId: student.id,
       studentName: student.fullName,
       class: student.class,
-      existingInvoice,
+      // Trimmed: only id + lineItems (drop timestamps, totals, schoolId duplication)
+      existingInvoice: {
+        id: existingInvoice.id,
+        lineItems: existingInvoice.lineItems.map((li) => ({
+          id: li.id,
+          description: li.description,
+          amountDue: li.amountDue,
+          amountPaid: li.amountPaid,
+          priority: li.priority,
+          status: li.status,
+        })),
+      } as unknown as Invoice,
     };
   });
   const skippedByClass = groupSkippedByClass(skippedWithInvoices);
 
   if (studentsToInvoice.length === 0) {
+    // Nothing to create — persist the run and return
+    const totalSkipped = skippedByClass.reduce((n, g) => n + g.students.length, 0);
+    const details: { studentId: string; invoiceId: string }[] = [];
+    const runId = await persistRun(adminDb, schoolId, target, bulkTemplate, 0, totalSkipped, skippedByClass, details);
+    await updateLastUsedTermSession(adminDb, schoolId, term, session);
+
     return Response.json(
       {
+        runId,
         created: 0,
-        skipped: skippedByClass.reduce((n, g) => n + g.students.length, 0),
+        skipped: totalSkipped,
         skippedByClass,
         bulkTemplate,
         skippedReason: 'All selected students already have an invoice for this term/session',
-        details: [],
+        details,
       },
       { status: 200 }
     );
   }
 
   // 8. Write invoices using batched writes, chunked at CHUNK_SIZE
-  const results: { studentId: string; studentName: string; invoiceId: string }[] = [];
+  const results: { studentId: string; invoiceId: string }[] = [];
 
   for (let i = 0; i < studentsToInvoice.length; i += CHUNK_SIZE) {
     const chunk = studentsToInvoice.slice(i, i + CHUNK_SIZE);
@@ -195,25 +220,79 @@ export async function POST(request: NextRequest) {
         outstandingBalance: student.outstandingBalance + totalAmountDue,
       });
 
-      results.push({
-        studentId: student.id,
-        studentName: student.fullName,
-        invoiceId,
-      });
+      // Trimmed: only studentId + invoiceId (results page needs counts/links, not full bodies)
+      results.push({ studentId: student.id, invoiceId });
     }
 
     await batch.commit();
   }
 
-  // 9. Return summary
+  // 9. Persist run doc immediately after all batches commit (no intermediary awaits).
+  //    If persistence fails, we catch and continue — the full payload is in the response.
+  const totalSkipped = skippedByClass.reduce((n, g) => n + g.students.length, 0);
+  const runId = await persistRun(adminDb, schoolId, target, bulkTemplate, results.length, totalSkipped, skippedByClass, results);
+
+  // 10. Update lastUsedTermSession on school doc (non-critical)
+  await updateLastUsedTermSession(adminDb, schoolId, term, session);
+
+  // 11. Return summary
   return Response.json(
     {
+      runId,           // null if persistence failed — client handles gracefully
       created: results.length,
-      skipped: skippedByClass.reduce((n, g) => n + g.students.length, 0),
+      skipped: totalSkipped,
       skippedByClass,
       bulkTemplate,
       details: results,
     },
     { status: 201 }
   );
+}
+
+// ── Helpers ──────────────────────────────────
+
+async function persistRun(
+  adminDb: ReturnType<typeof getAdminDb>,
+  schoolId: string,
+  target: { type: string; value: string },
+  bulkTemplate: { term: string; session: string; lineItems: { description: string; amountDue: number; priority: number }[] },
+  created: number,
+  skipped: number,
+  skippedByClass: ReturnType<typeof groupSkippedByClass>,
+  details: { studentId: string; invoiceId: string }[]
+): Promise<string | null> {
+  try {
+    const runRef = adminDb.collection('bulk_invoice_runs').doc();
+    await runRef.set({
+      id: runRef.id,
+      schoolId,
+      target,
+      bulkTemplate,
+      created,
+      skipped,
+      skippedByClass,
+      details,
+      createdAt: new Date().toISOString(),
+    });
+    return runRef.id;
+  } catch (err) {
+    console.error('[bulk-create] bulk_invoice_runs persistence failed — returning inline only:', err);
+    return null;
+  }
+}
+
+async function updateLastUsedTermSession(
+  adminDb: ReturnType<typeof getAdminDb>,
+  schoolId: string,
+  term: string,
+  session: string
+): Promise<void> {
+  try {
+    await adminDb.collection('schools').doc(schoolId).update({
+      lastUsedTermSession: { term, session },
+    });
+  } catch (err) {
+    // Non-critical — log and continue
+    console.error('[bulk-create] Failed to update lastUsedTermSession:', err);
+  }
 }

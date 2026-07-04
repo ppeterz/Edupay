@@ -3,7 +3,7 @@
 // ──────────────────────────────────────────────
 
 import { describe, test, expect } from 'vitest';
-import { reconcile } from './reconciliation-engine';
+import { reconcile, reconcileMultiple } from './reconciliation-engine';
 import type { Student, Invoice, InvoiceLineItem } from '@/types';
 
 function createMockStudent(creditBalance = 0): Student {
@@ -24,7 +24,7 @@ function createMockStudent(creditBalance = 0): Student {
 }
 
 
-function createMockInvoice(lineItems: InvoiceLineItem[]): Invoice {
+function createMockInvoice(lineItems: InvoiceLineItem[], overrides: Partial<Invoice> = {}): Invoice {
   const totalAmountDue = lineItems.reduce((sum, item) => sum + item.amountDue, 0);
   const totalAmountPaid = lineItems.reduce((sum, item) => sum + item.amountPaid, 0);
   return {
@@ -40,6 +40,7 @@ function createMockInvoice(lineItems: InvoiceLineItem[]): Invoice {
     status: 'unpaid',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    ...overrides,
   };
 }
 
@@ -69,6 +70,7 @@ describe('Reconciliation Engine Tests', () => {
     expect(result.eventType).toBe('full_payment');
     expect(result.allocations).toEqual([
       {
+        invoiceId: 'invoice-123',
         lineItemId: 'li-tuition',
         description: 'Tuition',
         amountAllocated: 5000000,
@@ -100,6 +102,7 @@ describe('Reconciliation Engine Tests', () => {
     expect(result.eventType).toBe('underpayment');
     expect(result.allocations).toEqual([
       {
+        invoiceId: 'invoice-123',
         lineItemId: 'li-tuition',
         description: 'Tuition',
         amountAllocated: 3000000,
@@ -132,6 +135,7 @@ describe('Reconciliation Engine Tests', () => {
     expect(result.eventType).toBe('overpayment');
     expect(result.allocations).toEqual([
       {
+        invoiceId: 'invoice-123',
         lineItemId: 'li-tuition',
         description: 'Tuition',
         amountAllocated: 5000000,
@@ -226,11 +230,13 @@ describe('Reconciliation Engine Tests', () => {
 
     expect(result.allocations).toEqual([
       {
+        invoiceId: 'invoice-123',
         lineItemId: 'li-tuition',
         description: 'Tuition',
         amountAllocated: 1500000,
       },
       {
+        invoiceId: 'invoice-123',
         lineItemId: 'li-exam',
         description: 'Exam',
         amountAllocated: 500000,
@@ -261,5 +267,146 @@ describe('Reconciliation Engine Tests', () => {
     expect(result.newStudentCreditBalance).toBe(0);
     expect(result.newOutstandingBalance).toBe(0);
     expect(result.newInvoiceStatus).toBe('paid');
+  });
+
+  // ── Multi-invoice tests (reconcileMultiple) ─────────
+
+  // TEST 7 — Two invoices, payment settles both fully
+  test('TEST 7 — Two invoices, payment settles both fully', () => {
+    const student = createMockStudent(0);
+    const invoiceA = createMockInvoice(
+      [
+        { id: 'li-tuition-a', description: 'Tuition', amountDue: 1000000, amountPaid: 0, priority: 1, status: 'unpaid' },
+      ],
+      { id: 'invoice-A', term: 'First Term', createdAt: '2026-01-01T00:00:00.000Z' }
+    );
+    const invoiceB = createMockInvoice(
+      [
+        { id: 'li-tuition-b', description: 'Tuition', amountDue: 5000000, amountPaid: 0, priority: 1, status: 'unpaid' },
+      ],
+      { id: 'invoice-B', term: 'Second Term', createdAt: '2026-04-01T00:00:00.000Z' }
+    );
+
+    const result = reconcileMultiple(student, 6000000, [invoiceA, invoiceB]);
+
+    expect(result.perInvoice).toHaveLength(2);
+    expect(result.perInvoice[0].invoiceId).toBe('invoice-A');
+    expect(result.perInvoice[0].newInvoiceStatus).toBe('paid');
+    expect(result.perInvoice[0].newOutstandingBalance).toBe(0);
+    expect(result.perInvoice[1].invoiceId).toBe('invoice-B');
+    expect(result.perInvoice[1].newInvoiceStatus).toBe('paid');
+    expect(result.perInvoice[1].newOutstandingBalance).toBe(0);
+    expect(result.creditGenerated).toBe(0);
+    expect(result.totalAllocated).toBe(6000000);
+    expect(result.eventType).toBe('full_payment');
+  });
+
+  // TEST 8 — Two invoices, payment only covers the first + partially the second
+  test('TEST 8 — Two invoices, partial second invoice', () => {
+    const student = createMockStudent(0);
+    const invoiceA = createMockInvoice(
+      [
+        { id: 'li-tuition-a', description: 'Tuition', amountDue: 1000000, amountPaid: 0, priority: 1, status: 'unpaid' },
+      ],
+      { id: 'invoice-A', term: 'First Term', createdAt: '2026-01-01T00:00:00.000Z' }
+    );
+    const invoiceB = createMockInvoice(
+      [
+        { id: 'li-tuition-b', description: 'Tuition', amountDue: 5000000, amountPaid: 0, priority: 1, status: 'unpaid' },
+      ],
+      { id: 'invoice-B', term: 'Second Term', createdAt: '2026-04-01T00:00:00.000Z' }
+    );
+
+    const result = reconcileMultiple(student, 3500000, [invoiceA, invoiceB]);
+
+    expect(result.perInvoice).toHaveLength(2);
+    expect(result.perInvoice[0].invoiceId).toBe('invoice-A');
+    expect(result.perInvoice[0].newInvoiceStatus).toBe('paid');
+    expect(result.perInvoice[1].invoiceId).toBe('invoice-B');
+    expect(result.perInvoice[1].newInvoiceStatus).toBe('partial');
+    expect(result.perInvoice[1].newTotalAmountPaid).toBe(2500000);
+    expect(result.creditGenerated).toBe(0);
+    expect(result.eventType).toBe('underpayment');
+  });
+
+  // TEST 9 — Two invoices, payment doesn't even cover the first
+  test('TEST 9 — Two invoices, payment insufficient for first', () => {
+    const student = createMockStudent(0);
+    const invoiceA = createMockInvoice(
+      [
+        { id: 'li-tuition-a', description: 'Tuition', amountDue: 1000000, amountPaid: 0, priority: 1, status: 'unpaid' },
+      ],
+      { id: 'invoice-A', term: 'First Term', createdAt: '2026-01-01T00:00:00.000Z' }
+    );
+    const invoiceB = createMockInvoice(
+      [
+        { id: 'li-tuition-b', description: 'Tuition', amountDue: 5000000, amountPaid: 0, priority: 1, status: 'unpaid' },
+      ],
+      { id: 'invoice-B', term: 'Second Term', createdAt: '2026-04-01T00:00:00.000Z' }
+    );
+
+    const result = reconcileMultiple(student, 500000, [invoiceA, invoiceB]);
+
+    // Only invoice A appears in perInvoice (partial), invoice B received zero funds
+    expect(result.perInvoice).toHaveLength(1);
+    expect(result.perInvoice[0].invoiceId).toBe('invoice-A');
+    expect(result.perInvoice[0].newInvoiceStatus).toBe('partial');
+    expect(result.perInvoice[0].newTotalAmountPaid).toBe(500000);
+    expect(result.creditGenerated).toBe(0);
+    expect(result.eventType).toBe('underpayment');
+  });
+
+  // TEST 10 — Regression check: reconcile() wrapper still matches old behavior
+  test('TEST 10 — reconcile() wrapper regression (full payment, single invoice)', () => {
+    const student = createMockStudent(0);
+    const invoice = createMockInvoice([
+      {
+        id: 'li-tuition',
+        description: 'Tuition',
+        amountDue: 5000000,
+        amountPaid: 0,
+        priority: 1,
+        status: 'unpaid',
+      },
+    ]);
+
+    const result = reconcile(student, 5000000, invoice);
+
+    // Identical shape/values to original Test 1
+    expect(result.newInvoiceStatus).toBe('paid');
+    expect(result.newOutstandingBalance).toBe(0);
+    expect(result.newTotalAmountPaid).toBe(5000000);
+    expect(result.creditGenerated).toBe(0);
+    expect(result.newStudentCreditBalance).toBe(0);
+    expect(result.eventType).toBe('full_payment');
+    expect(result.allocations).toEqual([
+      {
+        invoiceId: 'invoice-123',
+        lineItemId: 'li-tuition',
+        description: 'Tuition',
+        amountAllocated: 5000000,
+      },
+    ]);
+  });
+
+  // TEST 11 — reconcileMultiple() directly: overpaid status on single invoice
+  test('TEST 11 — reconcileMultiple() overpaid status (single invoice, direct call)', () => {
+    const student = createMockStudent(0);
+    const invoice = createMockInvoice(
+      [
+        { id: 'li-tuition', description: 'Tuition', amountDue: 5000000, amountPaid: 0, priority: 1, status: 'unpaid' },
+      ],
+      { id: 'invoice-overpay' }
+    );
+
+    const result = reconcileMultiple(student, 6000000, [invoice]);
+
+    expect(result.perInvoice).toHaveLength(1);
+    expect(result.perInvoice[0].newInvoiceStatus).toBe('overpaid');
+    expect(result.perInvoice[0].newOutstandingBalance).toBe(0);
+    expect(result.creditGenerated).toBe(1000000);
+    expect(result.newStudentCreditBalance).toBe(1000000);
+    expect(result.eventType).toBe('overpayment');
+    expect(result.totalAllocated).toBe(5000000);
   });
 });

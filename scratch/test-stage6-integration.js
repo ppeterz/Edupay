@@ -547,7 +547,60 @@ async function scenario12_decimalKoboRounding() {
   }
 }
 
-// ── 7. Run all scenarios ──
+async function scenario13_multiInvoiceSettlement() {
+  console.log('\n--- Scenario 13: Multi-invoice settlement (₦60,000 across 2 invoices) ---');
+  const { id: studentId, accountRef } = await createStudent({ outstandingBalance: 6000000 });
+
+  // First Term: ₦10,000 remaining (created earlier)
+  const { id: invoiceA } = await createInvoice(studentId, 'school-st6-edge', {
+    lineItems: [
+      { id: 'li-1', description: 'Tuition', amountDue: 1000000, amountPaid: 0, priority: 1, status: 'unpaid' },
+    ],
+    overrides: {
+      term: 'First Term',
+      session: '2026/2027',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    },
+  });
+
+  // Second Term: ₦50,000 untouched (created later)
+  const { id: invoiceB } = await createInvoice(studentId, 'school-st6-edge', {
+    lineItems: [
+      { id: 'li-2', description: 'Tuition', amountDue: 5000000, amountPaid: 0, priority: 1, status: 'unpaid' },
+    ],
+    overrides: {
+      term: 'Second Term',
+      session: '2026/2027',
+      createdAt: '2026-04-01T00:00:00.000Z',
+    },
+  });
+
+  const txnId = uniqueId('tx');
+  await sendWebhook(accountRef, txnId, 60000); // ₦60,000
+
+  // Poll both invoices to fully paid
+  const invA = await pollInvoiceOutstanding(invoiceA, 0);
+  const invB = await pollInvoiceOutstanding(invoiceB, 0);
+  const student = await pollStudentCredit(studentId, 0);
+  const payments = await pollPaymentProcessed(txnId);
+
+  assert('Invoice A status', invA?.status, 'paid');
+  assert('Invoice A outstandingBalance', invA?.outstandingBalance, 0);
+  assert('Invoice B status', invB?.status, 'paid');
+  assert('Invoice B outstandingBalance', invB?.outstandingBalance, 0);
+  assert('Student creditBalance stays 0', student?.creditBalance, 0);
+  assertTrue('Exactly 1 payment document', payments.length === 1, `(found ${payments.length})`);
+
+  if (payments[0]) {
+    const p = payments[0];
+    assert('Payment status', p.paymentStatus, 'processed');
+    assertTrue('invoiceIds has 2 entries', (p.invoiceIds || []).length === 2, `(found ${(p.invoiceIds || []).length})`);
+    // Allocations should contain entries tagged with both invoice IDs
+    const allocInvoiceIds = [...new Set((p.allocations || []).map((a) => a.invoiceId))];
+    assertTrue('Allocations reference both invoices', allocInvoiceIds.length === 2, `(found ${allocInvoiceIds.length}: ${allocInvoiceIds.join(', ')})`);
+  }
+}
+
 async function runAll() {
   console.log('🚀 Stage 6 Edge-Case Integration Suite — starting...');
   console.log('   (requires `npm run dev` running on localhost:3000)\n');
@@ -566,6 +619,7 @@ async function runAll() {
     scenario10_zeroAmount,
     scenario11_negativeAmount,
     scenario12_decimalKoboRounding,
+    scenario13_multiInvoiceSettlement,
   ];
 
   for (const scenario of scenarios) {

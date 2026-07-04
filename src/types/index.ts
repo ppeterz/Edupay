@@ -9,6 +9,7 @@ export interface School {
   name: string;
   email: string;
   createdAt: string;
+  lastUsedTermSession?: { term: string; session: string };
 }
 
 export interface Student {
@@ -56,7 +57,8 @@ export interface Payment {
   id: string;
   studentId: string;
   schoolId: string;
-  invoiceId: string;
+  invoiceId: string;          // PRIMARY invoice (first one touched) — backward compat
+  invoiceIds: string[];       // ALL invoices this payment touched, in order
   transactionId: string;
   transactionReference: string;
   amount: number; // kobo
@@ -69,6 +71,7 @@ export interface Payment {
 }
 
 export interface PaymentAllocation {
+  invoiceId: string;        // which invoice this allocation belongs to
   lineItemId: string;
   description: string;
   amountAllocated: number; // kobo
@@ -92,6 +95,24 @@ export interface ReconciliationEvent {
   outstandingAfter: number;
   notes: string;
   createdAt: string;
+}
+
+export interface PerInvoiceReconciliation {
+  invoiceId: string;
+  allocations: PaymentAllocation[];
+  updatedLineItems: InvoiceLineItem[];
+  newInvoiceStatus: Invoice['status'];
+  newTotalAmountPaid: number;
+  newOutstandingBalance: number;
+  outstandingBefore: number;
+}
+
+export interface MultiInvoiceReconciliationResult {
+  perInvoice: PerInvoiceReconciliation[];   // only invoices that actually received funds
+  creditGenerated: number;
+  newStudentCreditBalance: number;
+  eventType: ReconciliationEvent['eventType'];
+  totalAllocated: number;
 }
 
 // ── Nomba API Types ──────────────────────────

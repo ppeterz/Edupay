@@ -38,33 +38,26 @@ export async function GET(
     }
     const school = schoolDoc.data() as School;
 
-    // 4. Fetch Invoice (optional)
-    let invoice: Invoice;
-    if (payment.invoiceId) {
-      const invoiceDoc = await adminDb.collection('invoices').doc(payment.invoiceId).get();
+    // 4. Fetch Invoices — use invoiceIds array if available, fall back to single invoiceId
+    const invoiceIds: string[] = payment.invoiceIds?.length
+      ? payment.invoiceIds
+      : payment.invoiceId
+        ? [payment.invoiceId]
+        : [];
+
+    const invoices: Invoice[] = [];
+    for (const invId of invoiceIds) {
+      if (!invId) continue;
+      const invoiceDoc = await adminDb.collection('invoices').doc(invId).get();
       if (invoiceDoc.exists) {
-        invoice = invoiceDoc.data() as Invoice;
-      } else {
-        // Mock fallback invoice
-        invoice = {
-          id: payment.invoiceId,
-          studentId: student.id,
-          schoolId: student.schoolId,
-          term: 'First Term',
-          session: '2025/2026',
-          lineItems: [],
-          totalAmountDue: payment.amount,
-          totalAmountPaid: payment.amount,
-          outstandingBalance: 0,
-          status: 'paid',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
+        invoices.push(invoiceDoc.data() as Invoice);
       }
-    } else {
-      // Mock fallback invoice
-      invoice = {
-        id: 'no-invoice',
+    }
+
+    // Fallback if no invoices found
+    if (invoices.length === 0) {
+      invoices.push({
+        id: payment.invoiceId || 'no-invoice',
         studentId: student.id,
         schoolId: student.schoolId,
         term: 'First Term',
@@ -76,11 +69,11 @@ export async function GET(
         status: 'paid',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
-      };
+      });
     }
 
     // 5. Generate PDF Buffer
-    const buffer = await generateReceiptPdfBuffer(payment, student, invoice, school);
+    const buffer = await generateReceiptPdfBuffer(payment, student, invoices, school);
 
     // 6. Return response stream as application/pdf
     return new NextResponse(new Uint8Array(buffer), {

@@ -1,16 +1,16 @@
 // ──────────────────────────────────────────────
-// EduPay — Transaction Engine (Stage 6)
+// EduPay — Transaction Engine (Stage 6 → Multi-Invoice)
 // ──────────────────────────────────────────────
 // Orchestrates the full payment processing pipeline:
 //   1. Idempotency check (defense in depth — webhook-processor also checks)
-//   2. Find active invoice for student
+//   2. Find active invoices for student (oldest-first, up to 10)
 //   3. Record pending payment
-//   4. Run pure reconciliation
+//   4. Run pure reconciliation (multi-invoice)
 //   5. Atomic Firestore transaction for all balance updates
 //   6. Write reconciliation event (audit trail)
 
 import { getAdminDb } from './firebase-admin';
-import { reconcile } from './reconciliation-engine';
+import { reconcileMultiple } from './reconciliation-engine';
 import { generateReceipt } from './receipt-generator';
 import { nairaToKobo } from './constants';
 import type {
@@ -61,24 +61,25 @@ export async function processPayment(
     }
   }
 
-  // Step 2 — find the student's active invoice (not fully paid, oldest first —
-  // spillover to a second invoice happens in Stage 9 edge-case handling,
-  // for now single active invoice is the common path)
+  // Step 2 — find the student's active invoices (oldest-first, up to 10)
   const invoicesSnap = await adminDb
     .collection('invoices')
     .where('studentId', '==', student.id)
     .where('status', 'in', ['unpaid', 'partial'])
     .orderBy('createdAt', 'asc')
-    .limit(1)
+    .limit(10)
     .get();
 
-  if (invoicesSnap.empty) {
+  const activeInvoices = invoicesSnap.docs.map(d => d.data() as Invoice);
+
+  if (activeInvoices.length === 0) {
     // No active invoice — record as pending, then process as credit-only underpayment/overpayment
     const pendingPayment: Payment = {
       id: paymentId,
       studentId: student.id,
       schoolId: student.schoolId,
       invoiceId: '',
+      invoiceIds: [],
       transactionId,
       transactionReference: txn.sessionId ?? '',
       amount: amountReceivedKobo,
@@ -147,14 +148,20 @@ export async function processPayment(
   }
 
 
-  const invoice = invoicesSnap.docs[0].data() as Invoice;
+  // Step 3 — run PURE multi-invoice reconciliation (no Firestore calls inside)
+  const result = reconcileMultiple(student, amountReceivedKobo, activeInvoices);
 
-  // Step 3 — create pending payment record
+  // Flatten allocations across all touched invoices for the payment record
+  const allAllocations = result.perInvoice.flatMap(pi => pi.allocations);
+  const touchedInvoiceIds = result.perInvoice.map(pi => pi.invoiceId);
+
+  // Step 4 — create pending payment record
   const pendingPayment: Payment = {
     id: paymentId,
     studentId: student.id,
     schoolId: student.schoolId,
-    invoiceId: invoice.id,
+    invoiceId: touchedInvoiceIds[0] ?? '',   // primary/oldest, backward compat
+    invoiceIds: touchedInvoiceIds,
     transactionId,
     transactionReference: txn.sessionId ?? '',
     amount: amountReceivedKobo,
@@ -165,9 +172,6 @@ export async function processPayment(
   };
   await adminDb.collection('payments').doc(paymentId).set(pendingPayment);
 
-  // Step 4 — run PURE reconciliation (no Firestore calls inside)
-  const result = reconcile(student, amountReceivedKobo, invoice);
-
   // Step 5 — atomic write of all balance changes
   const outstandingBefore = student.outstandingBalance;
 
@@ -175,7 +179,6 @@ export async function processPayment(
 
   await adminDb.runTransaction(async (tx) => {
     const studentRef = adminDb.collection('students').doc(student.id);
-    const invoiceRef = adminDb.collection('invoices').doc(invoice.id);
     const paymentRef = adminDb.collection('payments').doc(paymentId);
 
     // Fetch the payment record inside the transaction to prevent concurrent race conditions
@@ -195,26 +198,29 @@ export async function processPayment(
 
     tx.update(paymentRef, {
       paymentStatus: 'processed',
-      allocations: result.allocations,
+      allocations: allAllocations,
+      invoiceId: touchedInvoiceIds[0] ?? '',
+      invoiceIds: touchedInvoiceIds,
       processedAt: now,
     });
 
-    tx.update(invoiceRef, {
-      lineItems: result.updatedLineItems,
-      totalAmountPaid: result.newTotalAmountPaid,
-      outstandingBalance: result.newOutstandingBalance,
-      status: result.newInvoiceStatus,
-      updatedAt: now,
-    });
+    // Update EACH touched invoice
+    let totalOutstandingDelta = 0;
+    for (const pi of result.perInvoice) {
+      const invoiceRef = adminDb.collection('invoices').doc(pi.invoiceId);
+      tx.update(invoiceRef, {
+        lineItems: pi.updatedLineItems,
+        totalAmountPaid: pi.newTotalAmountPaid,
+        outstandingBalance: pi.newOutstandingBalance,
+        status: pi.newInvoiceStatus,
+        updatedAt: now,
+      });
+      totalOutstandingDelta += pi.outstandingBefore - pi.newOutstandingBalance;
+    }
 
-    // Student outstandingBalance: reduce by what was actually allocated toward
-    // this invoice's line items (not the raw amount received, since some of the
-    // received amount might become credit instead of reducing outstanding debt)
-    const outstandingDelta =
-      invoice.outstandingBalance - result.newOutstandingBalance;
     tx.update(studentRef, {
       outstandingBalance: Math.max(
-        student.outstandingBalance - outstandingDelta,
+        student.outstandingBalance - totalOutstandingDelta,
         0
       ),
       creditBalance: result.newStudentCreditBalance,
@@ -227,8 +233,10 @@ export async function processPayment(
 
   // Step 6 — write reconciliation event (audit trail, outside the transaction
   // is fine since it's append-only and not balance-critical)
-  const outstandingDelta =
-    invoice.outstandingBalance - result.newOutstandingBalance;
+  const totalOutstandingDelta = result.perInvoice.reduce(
+    (sum, pi) => sum + (pi.outstandingBefore - pi.newOutstandingBalance),
+    0
+  );
   const eventId = adminDb.collection('reconciliation_events').doc().id;
   const event: ReconciliationEvent = {
     id: eventId,
@@ -237,17 +245,14 @@ export async function processPayment(
     paymentId,
     eventType: result.eventType,
     amountReceived: amountReceivedKobo,
-    amountAllocated: result.allocations.reduce(
-      (sum, a) => sum + a.amountAllocated,
-      0
-    ),
+    amountAllocated: result.totalAllocated,
     creditGenerated: result.creditGenerated,
     outstandingBefore,
     outstandingAfter: Math.max(
-      outstandingBefore - outstandingDelta,
+      outstandingBefore - totalOutstandingDelta,
       0
     ),
-    notes: `Processed transaction ${transactionId} against invoice ${invoice.id}`,
+    notes: `Processed transaction ${transactionId} against invoice(s) ${touchedInvoiceIds.join(', ')}`,
     createdAt: new Date().toISOString(),
   };
   await adminDb
@@ -258,25 +263,26 @@ export async function processPayment(
   // Step 7 — receipt generation (fire-and-forget — never blocks payment processing)
   console.log(
     `[transaction-engine] Payment ${paymentId} processed: ${result.eventType}, ` +
-      `allocated ${result.allocations.reduce((s, a) => s + a.amountAllocated, 0)} kobo, ` +
+      `allocated ${result.totalAllocated} kobo across ${touchedInvoiceIds.length} invoice(s), ` +
       `credit ${result.creditGenerated} kobo`
   );
 
-  // Fetch school doc for receipt header, then generate PDF in background
+  // Fetch the updated invoices for receipt generation (they have been updated in the transaction)
+  const touchedInvoiceDocs = await Promise.all(
+    touchedInvoiceIds.map(id => adminDb.collection('invoices').doc(id).get())
+  );
+  const touchedInvoices = touchedInvoiceDocs.map(d => d.data() as Invoice);
+
   generateReceipt(
     {
       ...pendingPayment,
-      allocations: result.allocations,
+      allocations: allAllocations,
+      invoiceId: touchedInvoiceIds[0] ?? '',
+      invoiceIds: touchedInvoiceIds,
       processedAt: new Date().toISOString(),
     },
     student,
-    {
-      ...invoice,
-      lineItems: result.updatedLineItems,
-      totalAmountPaid: result.newTotalAmountPaid,
-      outstandingBalance: result.newOutstandingBalance,
-      status: result.newInvoiceStatus,
-    },
+    touchedInvoices,
     await adminDb
       .collection('schools')
       .doc(student.schoolId)

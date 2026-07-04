@@ -57,5 +57,14 @@ service cloud.firestore {
     match /webhook_errors/{errorId} {
       allow read, write: if false; // Admin SDK only
     }
+
+    // ── Bulk Invoice Runs (server writes, client reads) ──
+    // Written by /api/invoices/bulk-create (Admin SDK).
+    // Schools can read their own run records to reload results/skip-review pages.
+    match /bulk_invoice_runs/{runId} {
+      allow read: if request.auth != null
+        && resource.data.schoolId == request.auth.uid;
+      allow write: if false; // Admin SDK only
+    }
   }
 }
