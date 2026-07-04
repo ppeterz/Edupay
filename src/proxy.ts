@@ -13,7 +13,7 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Always allow public paths through
-  const publicPaths = ['/login', '/register', '/api/webhooks', '/api/receipts'];
+  const publicPaths = ['/login', '/register', '/api/webhooks', '/api/receipts', '/api/check-env'];
   const isPublic = publicPaths.some((path) => pathname.startsWith(path));
   if (isPublic) return NextResponse.next();
 
