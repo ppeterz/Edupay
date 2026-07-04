@@ -1,5 +1,5 @@
 // ──────────────────────────────────────────────
-// EduPay — PDF Receipt Generator (Stage 8 → Multi-Invoice)
+// EduPay — PDF Receipt Generator (Redesigned)
 // ──────────────────────────────────────────────
 // Generates a styled PDF receipt for a processed payment and uploads
 // it to Cloudinary. Returns the public URL.
@@ -14,10 +14,39 @@ import {
   View,
   StyleSheet,
   renderToBuffer,
+  Font,
 } from '@react-pdf/renderer';
 import { uploadPdfToCloudinary } from './cloudinary';
 import type { Payment, Student, Invoice, School } from '@/types';
 import { kobotoNaira } from './constants';
+
+// Register Roboto font to support the Naira symbol (U+20A6)
+Font.register({
+  family: 'Roboto',
+  fonts: [
+    { src: 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/Roboto-Regular.ttf' },
+    { src: 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/Roboto-Bold.ttf', fontWeight: 'bold' }
+  ]
+});
+
+/**
+ * Format timestamp into standard readable format: "July 4, 2026, 8:14 PM"
+ */
+function formatReceiptDate(isoString: string): string {
+  try {
+    const date = new Date(isoString);
+    return date.toLocaleString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return isoString;
+  }
+}
 
 /**
  * Render the PDF receipt to a Buffer.
@@ -34,95 +63,158 @@ export async function generateReceiptPdfBuffer(
 
   // Calculate total outstanding across all invoices
   const totalOutstanding = invoices.reduce((sum, inv) => sum + inv.outstandingBalance, 0);
+  const totalApplied = payment.allocations.reduce((sum, a) => sum + a.amountAllocated, 0);
+
+  // Group terms and sessions for display
+  const termsText = Array.from(new Set(invoices.map((inv) => inv.term))).join(', ');
+  const sessionsText = Array.from(new Set(invoices.map((inv) => inv.session))).join(', ');
 
   const doc = (
     <Document>
       <Page size="A4" style={styles.page}>
-        {/* School Header */}
-        <Text style={styles.header}>{school.name}</Text>
-        <Text style={styles.subheader}>
-          Payment Receipt — {receiptNumber}
-        </Text>
-        <Text style={styles.date}>Date: {dateStr}</Text>
-
-        {/* Divider */}
-        <View style={styles.divider} />
-
-        {/* Student Info */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Student Details</Text>
-          <Text style={styles.field}>
-            Student: {student.fullName}
-          </Text>
-          <Text style={styles.field}>Class: {student.class}</Text>
-          <Text style={styles.field}>
-            Admission No: {student.admissionNumber}
-          </Text>
-          <Text style={styles.field}>
-            Virtual Account: {student.virtualAccountNumber}
-          </Text>
-          {payment.transactionReference && (
-            <Text style={styles.field}>
-              Transaction Ref: {payment.transactionReference}
-            </Text>
-          )}
+        
+        {/* Header Banner */}
+        <View style={styles.headerContainer}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.schoolName}>{school.name}</Text>
+            <Text style={styles.receiptTitle}>Payment Receipt</Text>
+          </View>
+          <View style={styles.headerRight}>
+            <Text style={styles.receiptRef}>{receiptNumber}</Text>
+            <Text style={styles.receiptDate}>{formatReceiptDate(dateStr)}</Text>
+          </View>
         </View>
 
-        {/* Allocation Breakdown — one section per invoice */}
-        {invoices.map((invoice) => {
-          const invoiceAllocations = payment.allocations.filter(
-            (a) => a.invoiceId === invoice.id
-          );
-          if (invoiceAllocations.length === 0) return null;
+        {/* Paid status badge row */}
+        <View style={styles.badgeContainer}>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>PAID</Text>
+          </View>
+        </View>
 
-          return (
-            <View key={invoice.id} style={styles.section}>
-              <Text style={styles.sectionTitle}>
-                {invoice.term} — {invoice.session}
-              </Text>
-              {/* Table Header */}
-              <View style={styles.tableHeaderRow}>
-                <Text style={styles.tableHeaderLeft}>Description</Text>
-                <Text style={styles.tableHeaderRight}>Amount</Text>
-              </View>
-              {/* Table Rows */}
-              {invoiceAllocations.map((a, index) => (
-                <View key={index} style={styles.row}>
-                  <Text style={styles.rowLeft}>{a.description}</Text>
-                  <Text style={styles.rowRight}>
-                    {kobotoNaira(a.amountAllocated)}
-                  </Text>
-                </View>
-              ))}
-              <Text style={styles.rowMuted}>
-                {invoice.term} outstanding after this payment:{' '}
-                {kobotoNaira(invoice.outstandingBalance)}
+        {/* Details columns */}
+        <View style={styles.columnsContainer}>
+          {/* Student details */}
+          <View style={styles.column}>
+            <Text style={styles.columnTitle}>STUDENT DETAILS</Text>
+            <View style={styles.columnUnderline} />
+            
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>FULL NAME</Text>
+              <Text style={styles.fieldValue}>{student.fullName}</Text>
+            </View>
+            
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>CLASS</Text>
+              <Text style={styles.fieldValue}>{student.class}</Text>
+            </View>
+            
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>ADMISSION NO.</Text>
+              <Text style={styles.fieldValue}>{student.admissionNumber || 'N/A'}</Text>
+            </View>
+            
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>VIRTUAL ACCOUNT</Text>
+              <Text style={styles.fieldValue}>
+                {student.virtualAccountNumber} ({student.virtualAccountBankName || 'Sterling Bank'})
               </Text>
             </View>
-          );
-        })}
-
-        {/* Summary */}
-        <View style={styles.divider} />
-        <View style={styles.section}>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Amount Received:</Text>
-            <Text style={styles.summaryValue}>
-              {kobotoNaira(payment.amount)}
-            </Text>
           </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Total Outstanding Balance:</Text>
-            <Text style={styles.summaryValue}>
-              {kobotoNaira(totalOutstanding)}
-            </Text>
+
+          {/* Payment details */}
+          <View style={styles.column}>
+            <Text style={styles.columnTitle}>PAYMENT DETAILS</Text>
+            <View style={styles.columnUnderline} />
+            
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>TRANSACTION REF</Text>
+              <Text style={styles.fieldValue}>{payment.transactionReference || 'N/A'}</Text>
+            </View>
+            
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>TERM</Text>
+              <Text style={styles.fieldValue}>{termsText || 'N/A'}</Text>
+            </View>
+            
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>SESSION</Text>
+              <Text style={styles.fieldValue}>{sessionsText || 'N/A'}</Text>
+            </View>
+            
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>DATE PROCESSED</Text>
+              <Text style={styles.fieldValue}>{formatReceiptDate(dateStr)}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Allocation breakdown */}
+        <View style={styles.tableContainer}>
+          <Text style={styles.allocationTitle}>Allocation Breakdown</Text>
+          
+          {/* Table Header */}
+          <View style={styles.tableHeaderRow}>
+            <Text style={styles.tableHeaderLeft}>DESCRIPTION</Text>
+            <Text style={styles.tableHeaderCenter}>PRIORITY</Text>
+            <Text style={styles.tableHeaderRight}>AMOUNT</Text>
+          </View>
+          
+          {/* Table Rows */}
+          {payment.allocations.map((a, index) => {
+            let priorityLabel = 'P1';
+            for (const inv of invoices) {
+              const matchedItem = inv.lineItems.find(
+                (item) => item.id === a.lineItemId || item.description.toLowerCase().trim() === a.description.toLowerCase().trim()
+              );
+              if (matchedItem) {
+                priorityLabel = `P${matchedItem.priority}`;
+                break;
+              }
+            }
+            return (
+              <View key={index} style={[styles.row, index % 2 === 0 ? styles.evenRow : {}]}>
+                <Text style={styles.rowLeft}>{a.description}</Text>
+                <Text style={styles.rowCenter}>{priorityLabel}</Text>
+                <Text style={styles.rowRight}>{kobotoNaira(a.amountAllocated)}</Text>
+              </View>
+            );
+          })}
+        </View>
+
+        {/* Summary box */}
+        <View style={styles.summaryContainer}>
+          <View style={styles.summaryBox}>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Amount Received</Text>
+              <Text style={styles.summaryValue}>{kobotoNaira(payment.amount)}</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Applied to Invoice</Text>
+              <Text style={styles.summaryValue}>{kobotoNaira(totalApplied)}</Text>
+            </View>
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryRow}>
+              <Text style={styles.outstandingLabel}>Outstanding Balance</Text>
+              {totalOutstanding <= 0 ? (
+                <Text style={styles.settledValue}>SETTLED</Text>
+              ) : (
+                <Text style={styles.outstandingValue}>{kobotoNaira(totalOutstanding)}</Text>
+              )}
+            </View>
           </View>
         </View>
 
         {/* Footer */}
-        <Text style={styles.footer}>
-          Generated by {school.name} Financial Reconciliation System
-        </Text>
+        <View style={styles.footerContainer}>
+          <Text style={styles.footerLeft}>
+            Generated by {school.name} Financial Reconciliation System
+          </Text>
+          <Text style={styles.footerRight}>
+            Receipt ID: {payment.id.toUpperCase()}
+          </Text>
+        </View>
+
       </Page>
     </Document>
   );
@@ -149,7 +241,6 @@ export async function generateReceipt(
     const publicId = `receipts/${student.schoolId}/${student.id}/${payment.id}`;
     const secureUrl = await uploadPdfToCloudinary(buffer, publicId);
 
-    // If secureUrl is the Cloudinary placeholder domain, we prefer our local fallback URL
     if (secureUrl.includes('placeholder-cloud') || !secureUrl) {
       console.warn(
         '[receipt-generator] Cloudinary upload failed, falling back to on-demand generation: ' +
@@ -172,116 +263,261 @@ export async function generateReceipt(
 
 const styles = StyleSheet.create({
   page: {
-    padding: 40,
-    fontSize: 11,
-    fontFamily: 'Helvetica',
-    color: '#1e293b',
-  },
-  header: {
-    fontSize: 20,
-    fontWeight: 700,
-    fontFamily: 'Helvetica-Bold',
-    marginBottom: 4,
-    color: '#0f172a',
-  },
-  subheader: {
-    fontSize: 14,
-    marginBottom: 6,
-    color: '#475569',
-    fontFamily: 'Helvetica-Bold',
-  },
-  date: {
     fontSize: 10,
-    color: '#64748b',
-    marginBottom: 8,
+    fontFamily: 'Roboto',
+    color: '#1e293b',
+    backgroundColor: '#ffffff',
+    position: 'relative',
+    height: '100%',
   },
-  divider: {
+  headerContainer: {
+    backgroundColor: '#1e293b',
+    paddingVertical: 20,
+    paddingHorizontal: 30,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  headerLeft: {
+    flexDirection: 'column',
+    width: '60%',
+  },
+  headerRight: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    width: '35%',
+  },
+  schoolName: {
+    fontSize: 16,
+    fontFamily: 'Roboto',
+    fontWeight: 'bold',
+    color: '#ffffff',
+    marginBottom: 4,
+  },
+  receiptTitle: {
+    fontSize: 10,
+    color: '#cbd5e1',
+    textTransform: 'capitalize',
+  },
+  receiptRef: {
+    fontSize: 12,
+    fontFamily: 'Roboto',
+    fontWeight: 'bold',
+    color: '#ffffff',
+    marginBottom: 4,
+  },
+  receiptDate: {
+    fontSize: 9,
+    color: '#cbd5e1',
+  },
+  badgeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 15,
+    marginBottom: 5,
+    paddingHorizontal: 30,
+  },
+  badge: {
+    backgroundColor: '#22c55e',
+    borderRadius: 12,
+    paddingVertical: 3,
+    paddingHorizontal: 12,
+  },
+  badgeText: {
+    fontSize: 9,
+    fontFamily: 'Roboto',
+    fontWeight: 'bold',
+    color: '#ffffff',
+    letterSpacing: 0.5,
+  },
+  columnsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 30,
+    marginTop: 10,
+    marginBottom: 15,
+  },
+  column: {
+    width: '47%',
+    flexDirection: 'column',
+  },
+  columnTitle: {
+    fontSize: 9,
+    fontFamily: 'Roboto',
+    fontWeight: 'bold',
+    color: '#1e293b',
+    letterSpacing: 0.5,
+  },
+  columnUnderline: {
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
-    marginVertical: 12,
-  },
-  section: {
-    marginTop: 8,
+    marginTop: 3,
     marginBottom: 8,
   },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: 700,
-    fontFamily: 'Helvetica-Bold',
-    marginBottom: 8,
-    color: '#334155',
+  fieldContainer: {
+    marginBottom: 6,
   },
-  field: {
-    fontSize: 11,
-    marginBottom: 3,
-    color: '#475569',
+  fieldLabel: {
+    fontSize: 7.5,
+    color: '#94a3b8',
+    fontFamily: 'Roboto',
+    fontWeight: 'bold',
+    marginBottom: 1.5,
+  },
+  fieldValue: {
+    fontSize: 9.5,
+    color: '#1e293b',
+    fontFamily: 'Roboto',
+    fontWeight: 'bold',
+  },
+  tableContainer: {
+    paddingHorizontal: 30,
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  allocationTitle: {
+    fontSize: 10.5,
+    fontFamily: 'Roboto',
+    fontWeight: 'bold',
+    color: '#1e293b',
+    marginBottom: 8,
   },
   tableHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    backgroundColor: '#f1f5f9',
+    paddingVertical: 5,
+    paddingHorizontal: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#cbd5e1',
-    paddingBottom: 4,
-    marginBottom: 4,
   },
   tableHeaderLeft: {
-    fontWeight: 700,
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 10,
-    color: '#334155',
+    fontFamily: 'Roboto',
+    fontWeight: 'bold',
+    fontSize: 8.5,
+    color: '#475569',
+    width: '50%',
+  },
+  tableHeaderCenter: {
+    fontFamily: 'Roboto',
+    fontWeight: 'bold',
+    fontSize: 8.5,
+    color: '#475569',
+    width: '20%',
+    textAlign: 'center',
   },
   tableHeaderRight: {
-    fontWeight: 700,
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 10,
-    color: '#334155',
+    fontFamily: 'Roboto',
+    fontWeight: 'bold',
+    fontSize: 8.5,
+    color: '#475569',
+    width: '30%',
     textAlign: 'right',
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 3,
-    paddingVertical: 2,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  evenRow: {
+    backgroundColor: '#f8fafc',
   },
   rowLeft: {
-    fontSize: 11,
-    color: '#475569',
+    fontSize: 9.5,
+    color: '#334155',
+    width: '50%',
+  },
+  rowCenter: {
+    fontSize: 9.5,
+    color: '#64748b',
+    width: '20%',
+    textAlign: 'center',
   },
   rowRight: {
-    fontSize: 11,
+    fontSize: 9.5,
     color: '#1e293b',
+    width: '30%',
     textAlign: 'right',
   },
-  rowMuted: {
-    fontSize: 10,
-    color: '#94a3b8',
-    marginTop: 4,
-    fontStyle: 'italic',
+  summaryContainer: {
+    paddingHorizontal: 30,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 10,
+    marginBottom: 30,
+  },
+  summaryBox: {
+    width: '45%',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    padding: 8,
+    borderRadius: 4,
   },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    alignItems: 'center',
+    paddingVertical: 2,
   },
   summaryLabel: {
-    fontSize: 12,
-    fontWeight: 700,
-    fontFamily: 'Helvetica-Bold',
-    color: '#334155',
+    fontSize: 8.5,
+    color: '#64748b',
   },
   summaryValue: {
-    fontSize: 12,
-    fontWeight: 700,
-    fontFamily: 'Helvetica-Bold',
-    color: '#0f172a',
+    fontSize: 8.5,
+    fontFamily: 'Roboto',
+    fontWeight: 'bold',
+    color: '#1e293b',
+    textAlign: 'right',
   },
-  footer: {
+  summaryDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+    marginVertical: 5,
+  },
+  outstandingLabel: {
+    fontSize: 9.5,
+    fontFamily: 'Roboto',
+    fontWeight: 'bold',
+    color: '#1e293b',
+  },
+  settledValue: {
+    fontSize: 9.5,
+    fontFamily: 'Roboto',
+    fontWeight: 'bold',
+    color: '#10b981',
+    textAlign: 'right',
+  },
+  outstandingValue: {
+    fontSize: 9.5,
+    fontFamily: 'Roboto',
+    fontWeight: 'bold',
+    color: '#ef4444',
+    textAlign: 'right',
+  },
+  footerContainer: {
     position: 'absolute',
     bottom: 30,
-    left: 40,
-    right: 40,
-    fontSize: 9,
+    left: 30,
+    right: 30,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    paddingTop: 8,
+  },
+  footerLeft: {
+    fontSize: 7.5,
     color: '#94a3b8',
-    textAlign: 'center',
+    width: '65%',
+  },
+  footerRight: {
+    fontSize: 7.5,
+    color: '#94a3b8',
+    width: '30%',
+    textAlign: 'right',
   },
 });
