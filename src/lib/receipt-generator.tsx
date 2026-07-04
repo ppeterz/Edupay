@@ -100,6 +100,20 @@ export async function generateReceiptPdfBuffer(
   const termsText = Array.from(new Set(invoices.map((inv) => inv.term))).join(', ');
   const sessionsText = Array.from(new Set(invoices.map((inv) => inv.session))).join(', ');
 
+  // Group allocations by invoice (which represents term and session)
+  const allocationsByInvoice = invoices.map(inv => {
+    const matchingAllocations = payment.allocations.filter(a => a.invoiceId === inv.id);
+    return {
+      invoice: inv,
+      allocations: matchingAllocations
+    };
+  }).filter(group => group.allocations.length > 0);
+
+  // Fallback unmatched allocations (just in case)
+  const unmatchedAllocations = payment.allocations.filter(
+    a => !invoices.some(inv => inv.id === a.invoiceId)
+  );
+
   const doc = (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -191,26 +205,53 @@ export async function generateReceiptPdfBuffer(
             <Text style={styles.tableHeaderRight}>AMOUNT</Text>
           </View>
           
-          {/* Table Rows */}
-          {payment.allocations.map((a, index) => {
-            let priorityLabel = 'P1';
-            for (const inv of invoices) {
-              const matchedItem = inv.lineItems.find(
-                (item) => item.id === a.lineItemId || item.description.toLowerCase().trim() === a.description.toLowerCase().trim()
-              );
-              if (matchedItem) {
-                priorityLabel = `P${matchedItem.priority}`;
-                break;
-              }
-            }
-            return (
-              <View key={index} style={[styles.row, index % 2 === 0 ? styles.evenRow : {}]}>
-                <Text style={styles.rowLeft}>{a.description}</Text>
-                <Text style={styles.rowCenter}>{priorityLabel}</Text>
-                <Text style={styles.rowRight}>{kobotoNaira(a.amountAllocated)}</Text>
+          {/* Table Rows grouped by Invoice/Term */}
+          {allocationsByInvoice.map((group, groupIndex) => (
+            <View key={group.invoice.id} style={{ marginTop: groupIndex > 0 ? 8 : 0 }}>
+              {/* Term Header Row */}
+              <View style={styles.termHeaderRow}>
+                <Text style={styles.termHeaderText}>
+                  {`${group.invoice.term.toUpperCase()} PAYMENT`}
+                </Text>
               </View>
-            );
-          })}
+
+              {/* Table Rows for this Group */}
+              {group.allocations.map((a, index) => {
+                let priorityLabel = 'P1';
+                const matchedItem = group.invoice.lineItems.find(
+                  (item) => item.id === a.lineItemId || item.description.toLowerCase().trim() === a.description.toLowerCase().trim()
+                );
+                if (matchedItem) {
+                  priorityLabel = `P${matchedItem.priority}`;
+                }
+                return (
+                  <View key={index} style={[styles.row, index % 2 === 0 ? styles.evenRow : {}]}>
+                    <Text style={styles.rowLeft}>{a.description}</Text>
+                    <Text style={styles.rowCenter}>{priorityLabel}</Text>
+                    <Text style={styles.rowRight}>{kobotoNaira(a.amountAllocated)}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          ))}
+
+          {unmatchedAllocations.length > 0 && (
+            <View style={{ marginTop: allocationsByInvoice.length > 0 ? 8 : 0 }}>
+              {/* Fallback Header */}
+              <View style={styles.termHeaderRow}>
+                <Text style={styles.termHeaderText}>OTHER PAYMENTS</Text>
+              </View>
+              {unmatchedAllocations.map((a, index) => {
+                return (
+                  <View key={index} style={[styles.row, index % 2 === 0 ? styles.evenRow : {}]}>
+                    <Text style={styles.rowLeft}>{a.description}</Text>
+                    <Text style={styles.rowCenter}>P1</Text>
+                    <Text style={styles.rowRight}>{kobotoNaira(a.amountAllocated)}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
         </View>
 
         {/* Summary box */}
@@ -420,6 +461,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#cbd5e1',
+  },
+  termHeaderRow: {
+    backgroundColor: '#e2e8f0',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#cbd5e1',
+    flexDirection: 'row',
+  },
+  termHeaderText: {
+    fontFamily: 'Roboto',
+    fontWeight: 'bold',
+    fontSize: 8,
+    color: '#334155',
+    letterSpacing: 0.5,
   },
   tableHeaderLeft: {
     fontFamily: 'Roboto',
