@@ -657,35 +657,35 @@ async function runAll() {
 
   // ── Post-run Cleanup ──
   // (Disabled so you can review transactions, logs, and student ledger timelines on the Dashboard pages)
-  /*
-  console.log('\n🧹 Cleaning up temporary test records from Firestore...');
-  try {
-    const studentsSnap = await db.collection('students').get();
-    for (const doc of studentsSnap.docs) {
-      if (doc.id.startsWith('stu-')) {
-        const studentId = doc.id;
+  
+  // console.log('\n🧹 Cleaning up temporary test records from Firestore...');
+  // try {
+  //   const studentsSnap = await db.collection('students').get();
+  //   for (const doc of studentsSnap.docs) {
+  //     if (doc.id.startsWith('stu-')) {
+  //       const studentId = doc.id;
         
-        // Delete invoices
-        const invSnap = await db.collection('invoices').where('studentId', '==', studentId).get();
-        for (const invDoc of invSnap.docs) {
-          await invDoc.ref.delete();
-        }
+  //       // Delete invoices
+  //       const invSnap = await db.collection('invoices').where('studentId', '==', studentId).get();
+  //       for (const invDoc of invSnap.docs) {
+  //         await invDoc.ref.delete();
+  //       }
 
-        // Delete payments
-        const paySnap = await db.collection('payments').where('studentId', '==', studentId).get();
-        for (const payDoc of paySnap.docs) {
-          await payDoc.ref.delete();
-        }
+  //       // Delete payments
+  //       const paySnap = await db.collection('payments').where('studentId', '==', studentId).get();
+  //       for (const payDoc of paySnap.docs) {
+  //         await payDoc.ref.delete();
+  //       }
 
-        // Delete student
-        await doc.ref.delete();
-      }
-    }
-    console.log('✅ Temporary test records removed.');
-  } catch (err) {
-    console.error('⚠️ Post-run cleanup encountered an error:', err.message);
-  }
-  */
+  //       // Delete student
+  //       await doc.ref.delete();
+  //     }
+  //   }
+  //   console.log('✅ Temporary test records removed.');
+  // } catch (err) {
+  //   console.error('⚠️ Post-run cleanup encountered an error:', err.message);
+  // }
+  
 
 
   console.log('\n=======================================');
