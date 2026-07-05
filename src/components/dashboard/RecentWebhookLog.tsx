@@ -8,10 +8,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase';
 import { kobotoNaira } from '@/lib/constants';
 import type { WebhookLog } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 
 function formatRelativeTime(dateStr: string): string {
   try {
@@ -43,26 +44,26 @@ function formatRelativeTime(dateStr: string): string {
 }
 
 export function RecentWebhookLog() {
+  const { user } = useAuth();
   const [logs, setLogs] = useState<WebhookLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!user) return;
     const db = getFirebaseDb();
     
-    // NOTE ON SCOPE LIMITATION:
-    // Webhook logs are tracked globally at the edge collection before school ID 
-    // mapping occurs. This allows live feed aggregation of incoming Nomba triggers 
-    // for hackathon demonstration.
     const q = query(
       collection(db, 'webhook_log'),
-      orderBy('createdAt', 'desc'),
+      where('schoolId', '==', user.uid),
       limit(20)
     );
 
     const unsub = onSnapshot(
       q,
       (snap) => {
-        setLogs(snap.docs.map((d) => d.data() as WebhookLog));
+        const list = snap.docs.map((d) => d.data() as WebhookLog);
+        list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setLogs(list);
         setLoading(false);
       },
       (err) => {
@@ -72,7 +73,7 @@ export function RecentWebhookLog() {
     );
 
     return () => unsub();
-  }, []);
+  }, [user]);
 
   return (
     <div className="flex flex-col rounded-lg border border-slate-200 bg-white shadow-sm">

@@ -99,7 +99,20 @@ export async function POST(request: NextRequest) {
     const adminDb = getAdminDb();
     const logId = adminDb.collection('webhook_log').doc().id;
 
-    const logEntry: WebhookLog = {
+    // Fetch matching student to get schoolId for scoping
+    let schoolId = '';
+    if (aliasAccountReference) {
+      const studentSnap = await adminDb
+        .collection('students')
+        .where('virtualAccountReference', '==', aliasAccountReference)
+        .limit(1)
+        .get();
+      if (!studentSnap.empty) {
+        schoolId = studentSnap.docs[0].data().schoolId || '';
+      }
+    }
+
+    const logEntry: WebhookLog & { schoolId?: string } = {
       id: logId,
       transactionId,
       aliasAccountReference,
@@ -107,6 +120,7 @@ export async function POST(request: NextRequest) {
       status: 'received',
       rawPayload: payload,
       createdAt: new Date().toISOString(),
+      schoolId,
     };
 
     await adminDb.collection('webhook_log').doc(logId).set(logEntry);
