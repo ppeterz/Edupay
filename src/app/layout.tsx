@@ -1,13 +1,11 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { Toaster } from '@/components/ui/sonner';
 import './globals.css';
 
-const inter = Inter({
-  variable: '--font-sans',
-  subsets: ['latin'],
-});
+const inter = {
+  variable: 'font-sans',
+};
 
 export const metadata: Metadata = {
   title: 'Edupay',

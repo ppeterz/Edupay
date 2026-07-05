@@ -123,6 +123,11 @@ export function clearTokenCache(): void {
 export async function createVirtualAccount(
   payload: NombaVirtualAccountRequest
 ): Promise<{ accountNumber: string; bankName: string; accountRef: string }> {
+  const subAccountId = process.env.NOMBA_SUB_ACCOUNT_ID;
+  if (!subAccountId) {
+    throw new Error('NOMBA_SUB_ACCOUNT_ID is not configured. Please contact the administrator to setup sub-account payments.');
+  }
+
   const token = await getValidToken();
 
   // CRITICAL: never set expectedAmount — omit it entirely
@@ -134,7 +139,7 @@ export async function createVirtualAccount(
   if (payload.bvn) body.bvn = payload.bvn;
   if (payload.nin) body.nin = payload.nin;
 
-  const res = await fetch(`${NOMBA_API_URL}/accounts/virtual`, {
+  const res = await fetch(`${NOMBA_API_URL}/accounts/virtual/${subAccountId}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
