@@ -86,7 +86,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   return Response.json({ updated: true }, { status: 200 });
 }
 
-// ── DELETE — hard delete student and all related data ─────────
+// ── DELETE — soft-delete student ─────────
 export async function DELETE(request: NextRequest, context: RouteContext) {
   const decoded = await verifyAuthToken(request);
   if (!decoded) return unauthorized();
@@ -105,49 +105,12 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // Use a batch to perform deletion atomically
-  const batch = adminDb.batch();
-
-  // 1. Delete student document
-  batch.delete(adminDb.collection('students').doc(id));
-
-  // 2. Query and delete all invoices for the student
-  const invoicesSnap = await adminDb
-    .collection('invoices')
-    .where('studentId', '==', id)
-    .get();
-  invoicesSnap.forEach((d) => batch.delete(d.ref));
-
-  // 3. Query and delete all payments for the student
-  const paymentsSnap = await adminDb
-    .collection('payments')
-    .where('studentId', '==', id)
-    .get();
-  paymentsSnap.forEach((d) => batch.delete(d.ref));
-
-  // 4. Query and delete all reconciliation events for the student
-  const recSnap = await adminDb
-    .collection('reconciliation_events')
-    .where('studentId', '==', id)
-    .get();
-  recSnap.forEach((d) => batch.delete(d.ref));
-
-  // 5. Query and delete matching webhook logs and errors
-  if (student.virtualAccountReference) {
-    const logsSnap = await adminDb
-      .collection('webhook_log')
-      .where('aliasAccountReference', '==', student.virtualAccountReference)
-      .get();
-    logsSnap.forEach((d) => batch.delete(d.ref));
-
-    const errorsSnap = await adminDb
-      .collection('webhook_errors')
-      .where('aliasAccountReference', '==', student.virtualAccountReference)
-      .get();
-    errorsSnap.forEach((d) => batch.delete(d.ref));
-  }
-
-  await batch.commit();
+  // Soft-delete the student by setting deletedAt
+  await adminDb
+    .collection('students')
+    .doc(id)
+    .update({ deletedAt: new Date().toISOString() });
 
   return Response.json({ deleted: true }, { status: 200 });
 }
+

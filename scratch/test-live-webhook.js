@@ -41,9 +41,9 @@ const payload = {
     transaction: {
       transactionId: `tx-live-test-${Date.now()}`,
       transactionAmount: 10.00, // ₦10.00 test payment
-      aliasAccountReference: 'iddnz92uwbzjg5v97qkn5kcbndn2-adm004', // tosin black reference
-      aliasAccountNumber: '5528068891',
-      aliasAccountName: 'tosin black',
+      aliasAccountReference: 'iddnz92uwbzjg5v97qkn5kcbndn2-adm006', // kay alaba reference
+      aliasAccountNumber: '1402774708',
+      aliasAccountName: 'kay alaba',
       aliasAccountType: 'virtual',
       fee: 0,
       sessionId: `sess-live-test-${Date.now()}`,

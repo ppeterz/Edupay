@@ -96,6 +96,11 @@ export async function generateReceiptPdfBuffer(
   const totalOutstanding = invoices.reduce((sum, inv) => sum + inv.outstandingBalance, 0);
   const totalApplied = payment.allocations.reduce((sum, a) => sum + a.amountAllocated, 0);
 
+  const isFullySettled = totalOutstanding === 0;
+  const badgeLabel = isFullySettled ? 'PAID' : 'PARTIAL PAYMENT';
+  const badgeColor = isFullySettled ? '#22c55e' : '#f59e0b'; // green vs amber
+  const creditGenerated = Math.max(0, payment.amount - totalApplied);
+
   // Group terms and sessions for display
   const termsText = Array.from(new Set(invoices.map((inv) => inv.term))).join(', ');
   const sessionsText = Array.from(new Set(invoices.map((inv) => inv.session))).join(', ');
@@ -132,8 +137,8 @@ export async function generateReceiptPdfBuffer(
 
         {/* Paid status badge row */}
         <View style={styles.badgeContainer}>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>PAID</Text>
+          <View style={[styles.badge, { backgroundColor: badgeColor }]}>
+            <Text style={styles.badgeText}>{badgeLabel}</Text>
           </View>
         </View>
 
@@ -162,7 +167,7 @@ export async function generateReceiptPdfBuffer(
             <View style={styles.fieldContainer}>
               <Text style={styles.fieldLabel}>VIRTUAL ACCOUNT</Text>
               <Text style={styles.fieldValue}>
-                {student.virtualAccountNumber} ({student.virtualAccountBankName || 'Sterling Bank'})
+                {student.virtualAccountNumber} ({student.virtualAccountBankName || 'N/A'})
               </Text>
             </View>
           </View>
@@ -265,6 +270,14 @@ export async function generateReceiptPdfBuffer(
               <Text style={styles.summaryLabel}>Applied to Invoice</Text>
               <Text style={styles.summaryValue}>{kobotoNaira(totalApplied)}</Text>
             </View>
+            {creditGenerated > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Credit Balance Added</Text>
+                <Text style={[styles.summaryValue, { color: '#2563eb' }]}>
+                  {kobotoNaira(creditGenerated)}
+                </Text>
+              </View>
+            )}
             <View style={styles.summaryDivider} />
             <View style={styles.summaryRow}>
               <Text style={styles.outstandingLabel}>Outstanding Balance</Text>

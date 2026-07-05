@@ -11,61 +11,66 @@ service cloud.firestore {
     }
 
     // ── Students ───────────────────────────────
-    // Only the owning school can read/write its students.
+    // Only the owning school can read its students. Write: false (Admin SDK only).
     match /students/{studentId} {
-      allow read, update, delete: if request.auth != null
+      allow read: if request.auth != null
         && resource.data.schoolId == request.auth.uid;
-
-      allow create: if request.auth != null
-        && request.resource.data.schoolId == request.auth.uid;
+      allow write: if false;
     }
 
-    // ── Invoices (future) ──────────────────────
+    // ── Invoices ───────────────────────────────
+    // Only the owning school can read its invoices. Write: false (Admin SDK only).
     match /invoices/{invoiceId} {
-      allow read, update, delete: if request.auth != null
+      allow read: if request.auth != null
         && resource.data.schoolId == request.auth.uid;
-
-      allow create: if request.auth != null
-        && request.resource.data.schoolId == request.auth.uid;
+      allow write: if false;
     }
 
-    // ── Payments (future) ─────────────────────
+    // ── Payments ───────────────────────────────
+    // Only the owning school can read its payments. Write: false (Admin SDK only).
     match /payments/{paymentId} {
       allow read: if request.auth != null
         && resource.data.schoolId == request.auth.uid;
-      // Payments are created by the webhook (server-side), not by clients
+      allow write: if false;
     }
 
-    // ── Reconciliation Events ────────────────
+    // ── Reconciliation Events ──────────────────
+    // Only the owning school can read its events. Write: false (Admin SDK only).
     match /reconciliation_events/{eventId} {
       allow read: if request.auth != null
         && resource.data.schoolId == request.auth.uid;
+      allow write: if false;
     }
 
-    // ── Webhook Log (server-only writes) ────────
-    // Written by the Admin SDK in the webhook handler.
-    // Schools can read entries for live monitoring/auditing.
+    // ── Webhook Log ────────────────────────────
+    // Global read for authenticated users (written before school context exists).
+    // Write: false (Admin SDK only).
     match /webhook_log/{logId} {
-      allow read: if request.auth != null
-        && resource.data.schoolId == request.auth.uid;
-      // All writes are Admin SDK server-side only
+      allow read: if request.auth != null;
+      allow write: if false;
     }
 
-
-    // ── Webhook Errors (server-only writes) ─────
-    // Written by processWebhookAsync when a payment cannot be matched.
-    // No client read — accessed only by admin/support tooling.
+    // ── Webhook Errors ─────────────────────────
+    // No client access. Write: false (Admin SDK only).
     match /webhook_errors/{errorId} {
-      allow read, write: if false; // Admin SDK only
+      allow read, write: if false;
     }
 
-    // ── Bulk Invoice Runs (server writes, client reads) ──
-    // Written by /api/invoices/bulk-create (Admin SDK).
-    // Schools can read their own run records to reload results/skip-review pages.
+    // ── Bulk Invoice Runs ──────────────────────
+    // Only the owning school can read its bulk runs. Write: false (Admin SDK only).
     match /bulk_invoice_runs/{runId} {
       allow read: if request.auth != null
         && resource.data.schoolId == request.auth.uid;
-      allow write: if false; // Admin SDK only
+      allow write: if false;
+    }
+
+    // ── Alerts ─────────────────────────────────
+    // Global read for authenticated users (schoolId can be null).
+    // Write: false (Admin SDK only).
+    match /alerts/{alertId} {
+      allow read: if request.auth != null;
+      allow write: if false;
     }
   }
 }
+

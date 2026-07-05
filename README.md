@@ -1,46 +1,97 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# EduPay — Financial Reconciliation Infrastructure for Schools
 
-## Getting Started
+EduPay is a production-hardened transaction engine and automated fee reconciliation platform designed for schools. It maps virtual bank accounts to students, handles multi-invoice allocation by line-item priority, carries forward overpayments as student credit, and automates receipt generation.
 
-First, run the development server:
+## Architecture
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+  Nomba Virtual Account (sub-account-scoped, LIVE credentials)
+         ↓ parent sends real bank transfer
+  Nomba Webhook (nomba-signature: HMAC-SHA256, base64, colon-joined field string)
+         ↓
+  Webhook Handler (/api/webhooks/nomba) — verify signature → write webhook_log → return 200
+         ↓ (Next.js after() API)
+  Webhook Processor — idempotency check → match student by virtualAccountReference
+         ↓
+  Transaction Engine — fetch ALL active invoices (oldest-first), deterministic payment id (txn_{transactionId})
+         ↓
+  Reconciliation Engine (pure function, reconcileMultiple) — allocate by line-item priority,
+  spill across MULTIPLE invoices in one payment, carry forward leftover credit for overpayment
+         ↓
+  Firestore atomic transaction — every touched invoice, student balance, payment record, all in one runTransaction()
+         ↓
+  Reconciliation Event (audit trail) + Receipt (Cloudinary with on-demand fallback) + Live Dashboard
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Key Design Decisions (For Judges)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Reliable Student Matching**: Students are matched to payments using a permanent `virtualAccountReference` (which corresponds to Nomba's `aliasAccountReference`). Matching never relies on brittle student names or exact transfer amounts.
+- **Multi-Invoice Spillover**: A single webhook payment can settle multiple open invoices across different terms, oldest-first, with correct per-invoice breakdown. This is fully validated against 13 synthetic integration scenarios and a real bank transfer.
+- **Line-Item Priority Allocation**: Allocates payments down to individual invoice items based on their priority (e.g. Tuition (P1) is settled before Transport (P3)).
+- **Overpayment Credit Handling**: Any excess payment amount is saved as `creditBalance` on the student ledger and is automatically carried forward to apply to their next invoice.
+- **Deterministic Idempotency**: Payment documents are written with a deterministic ID: `txn_${transactionId}`. This guarantees that duplicate webhook deliveries are discarded at the database level.
+- **On-Demand Receipt Fallback**: Receipt PDFs are uploaded to Cloudinary, but if Cloudinary is unavailable, they regenerate on-demand at a public, stateless endpoint (`/api/receipts/[id]`).
+- **Nomba API Sub-account Discovery**: We discovered and resolved a undocumented Nomba API subtlety during development: virtual accounts must be created using the sub-account-scoped endpoint (`POST /accounts/virtual/{subAccountId}`) rather than the parent endpoint, otherwise payment notifications will not fire. This resolved integration issues faced by multiple teams.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Setup
 
-## Learn More
+1. **Clone the repository** and install dependencies:
+   ```bash
+   npm install
+   ```
+2. **Configure Environment Variables**:
+   Copy `.env.example` to `.env.local` and fill in the values described in [DEPLOY_CHECKLIST.md](file:///c:/Users/DELL/Desktop/edupay/DEPLOY_CHECKLIST.md).
+3. **Start local development**:
+   ```bash
+   npm run dev
+   ```
 
-To learn more about Next.js, take a look at the following resources:
+## Testing
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+EduPay features a robust, multi-tier testing framework:
+- **Unit Tests**: Run unit tests covering fee reconciliation logic and multi-invoice allocations:
+  ```bash
+  npm test
+  ```
+- **Integration Tests**: Execute the 13-scenario integration test suite simulating full-pipeline payments against a real local Firestore database (requires local dev server running):
+  ```bash
+  node scratch/test-stage6-integration.js
+  ```
+- **Live Webhook Test**: Send a self-signed payment webhook payload to verify signature checking and processing against the live Vercel deployment:
+  ```bash
+  node scratch/test-live-webhook.js
+  ```
+- **Final Smoke Test**: Verify endpoint statuses, public receipt endpoints, health checks, and end-to-end webhook processing:
+  ```bash
+  node scratch/final-smoke-test.js https://edupay-five.vercel.app
+  ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deployment
 
-## Deploy on Vercel
+1. **Deploy to Vercel**: Import the repository and set up environment variables in Vercel settings.
+2. **Deploy Firestore Security Rules**:
+   Ensure security rules are deployed using the Firebase CLI to prevent client-side writes:
+   ```bash
+   firebase deploy --only firestore:rules
+   ```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## API Reference
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `POST /api/webhooks/nomba` (Public) - Main Nomba payment webhook. Verifies HMAC signature, registers transaction, and reconciles payments asynchronously.
+- `POST /api/webhooks/nomba/test` (Dev Only) - Helper to post self-signed webhook payloads locally.
+- `GET /api/health` (Public) - Simple service health check.
+- `GET /api/receipts/[id]` (Public) - Serves generated PDF receipts for parents.
+- `GET /api/students` (Auth Required) - Lists all non-deleted students.
+- `POST /api/students/create` (Auth Required) - Adds a student and provisions a Nomba virtual account.
+- `DELETE /api/students/[id]` (Auth Required) - Soft-deletes a student doc, preserving payments for audit history.
+- `GET /api/invoices` (Auth Required) - Retrieves invoices.
+- `POST /api/invoices/create` (Auth Required) - Creates a new invoice.
+- `PATCH /api/invoices/[id]/merge` (Auth Required) - Performs invoice template merging/reconciliation.
+- `POST /api/invoices/bulk-create` (Auth Required) - Generates invoices in bulk.
+- `GET /api/reports/summary` (Auth Required) - Retrives financial summaries.
+- `GET /api/alerts` (Auth Required) - Returns system activity alerts.
 
-## Firestore Indexes
+## Demo Narrative
 
-The active-invoice lookup query in `src/lib/transaction-engine.ts` requires a composite index on the `invoices` collection:
-
-| Collection | Fields                                              |
-|------------|-----------------------------------------------------|
-| `invoices` | `studentId` (asc), `status` (asc), `createdAt` (asc) |
-
-On first run, Firestore will log an error with a direct link to create this index automatically — click that link once. **Do not deploy to production without creating this index first.**
+> "Most teams built a payment dashboard. We built financial infrastructure.
+> Every student has a permanent, sub-account-scoped virtual account. When a parent transfers funds, our transaction engine identifies the student via `virtualAccountReference`, runs reconciliation across ALL their open invoices (oldest-first), allocates by line-item priority, carries forward any overpayment as credit, and generates a receipt, all triggered by a single verified webhook. We've proven this against real bank transfers on live Nomba infrastructure, including a single payment settling two separate terms' invoices in one transaction."
