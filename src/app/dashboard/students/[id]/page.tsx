@@ -31,6 +31,7 @@ import {
 import { kobotoNaira } from '@/lib/constants';
 import type { Student, Invoice } from '@/types';
 import { StudentBalanceSummary } from '@/components/dashboard/StudentBalanceSummary';
+import { toast } from 'sonner';
 
 
 export default function StudentDetailPage() {
@@ -45,8 +46,41 @@ export default function StudentDetailPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [copied, setCopied] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const { invoices, loading: invoicesLoading, error: invoicesError } = useInvoices(studentId);
+
+  async function handleDeleteStudent() {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${student?.fullName} and all associated invoices, payments, and logs? This action is permanent and cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeleting(true);
+    try {
+      const currentUser = user;
+      if (!currentUser) return;
+      const token = await currentUser.getIdToken();
+
+      const res = await fetch(`/api/students/${studentId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        toast.error(errData.error || 'Failed to delete student');
+        return;
+      }
+
+      toast.success('Student and all related data successfully deleted.');
+      router.push('/dashboard/students');
+    } catch {
+      toast.error('Network connection error');
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   // ── Fetch student data ─────────────────────
 
@@ -160,10 +194,20 @@ export default function StudentDetailPage() {
             {student.class} &middot; {student.admissionNumber}
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Create Invoice
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleDeleteStudent}
+            disabled={deleting}
+            className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+          >
+            {deleting ? 'Deleting...' : 'Delete Student'}
+          </Button>
+          <Button onClick={() => setDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Create Invoice
+          </Button>
+        </div>
       </div>
 
       {/* Virtual account info card */}
