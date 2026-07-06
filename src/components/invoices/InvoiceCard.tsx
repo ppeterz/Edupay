@@ -331,9 +331,28 @@ export function InvoiceCard({ invoice, student, schoolName, allInvoices, payment
     // Build balance carry-forward context if allInvoices is available
     if (!allInvoices || allInvoices.length === 0) return '';
 
-    const sorted = [...allInvoices].sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    );
+    const getSessionYear = (session: string) => {
+      const match = session.match(/^(\d{4})/);
+      return match ? parseInt(match[1], 10) : 0;
+    };
+
+    const getTermWeight = (term: string) => {
+      const t = term.toLowerCase().trim();
+      if (t.includes('first')) return 1;
+      if (t.includes('second')) return 2;
+      if (t.includes('third')) return 3;
+      return 4;
+    };
+
+    const sorted = [...allInvoices].sort((a, b) => {
+      const sA = getSessionYear(a.session);
+      const sB = getSessionYear(b.session);
+      if (sA !== sB) return sA - sB;
+
+      const tA = getTermWeight(a.term);
+      const tB = getTermWeight(b.term);
+      return tA - tB;
+    });
 
     const currentIdx = sorted.findIndex(inv => inv.id === invoice.id);
     if (currentIdx < 0) return '';

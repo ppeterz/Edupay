@@ -337,10 +337,32 @@ export async function generateReceiptPdfBuffer(
             </Text>
 
             {/* Per-invoice balance rows */}
-            {invoices
-              .slice()
-              .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-              .map((inv, idx) => {
+            {(() => {
+              const getSessionYear = (session: string) => {
+                const match = session.match(/^(\d{4})/);
+                return match ? parseInt(match[1], 10) : 0;
+              };
+
+              const getTermWeight = (term: string) => {
+                const t = term.toLowerCase().trim();
+                if (t.includes('first')) return 1;
+                if (t.includes('second')) return 2;
+                if (t.includes('third')) return 3;
+                return 4;
+              };
+
+              return invoices
+                .slice()
+                .sort((a, b) => {
+                  const sA = getSessionYear(a.session);
+                  const sB = getSessionYear(b.session);
+                  if (sA !== sB) return sA - sB;
+
+                  const tA = getTermWeight(a.term);
+                  const tB = getTermWeight(b.term);
+                  return tA - tB;
+                });
+            })().map((inv, idx) => {
                 // Find allocations from this payment to this invoice
                 const matchingAllocations = payment.allocations.filter((a) => a.invoiceId === inv.id);
                 const clearedByThisPayment = matchingAllocations.reduce((sum, a) => sum + a.amountAllocated, 0);

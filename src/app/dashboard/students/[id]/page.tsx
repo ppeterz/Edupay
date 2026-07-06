@@ -120,9 +120,36 @@ export default function StudentDetailPage() {
 
     const sName = school?.name || 'EduPay School';
 
+    const sortInvoicesChronologically = (invs: typeof invoices) => {
+      const getSessionYear = (session: string) => {
+        const match = session.match(/^(\d{4})/);
+        return match ? parseInt(match[1], 10) : 0;
+      };
+
+      const getTermWeight = (term: string) => {
+        const t = term.toLowerCase().trim();
+        if (t.includes('first')) return 1;
+        if (t.includes('second')) return 2;
+        if (t.includes('third')) return 3;
+        return 4;
+      };
+
+      return [...invs].sort((a, b) => {
+        const sA = getSessionYear(a.session);
+        const sB = getSessionYear(b.session);
+        if (sA !== sB) return sA - sB;
+
+        const tA = getTermWeight(a.term);
+        const tB = getTermWeight(b.term);
+        return tA - tB;
+      });
+    };
+
+    const chronologicalInvoices = sortInvoicesChronologically(invoices);
+
     // Group invoices by session
     const bySession = new Map<string, typeof invoices>();
-    for (const inv of invoices) {
+    for (const inv of chronologicalInvoices) {
       const key = `${inv.session}`;
       const list = bySession.get(key) ?? [];
       list.push(inv);
@@ -133,11 +160,6 @@ export default function StudentDetailPage() {
     const grandDue = invoices.reduce((s, inv) => s + inv.totalAmountDue, 0);
     const grandPaid = invoices.reduce((s, inv) => s + inv.totalAmountPaid, 0);
     const grandOutstanding = invoices.reduce((s, inv) => s + inv.outstandingBalance, 0);
-
-    // Build carry-forward ledger — sort invoices chronologically
-    const chronologicalInvoices = [...invoices].sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    );
 
     interface LedgerRow {
       term: string;
@@ -521,10 +543,16 @@ export default function StudentDetailPage() {
       text-align: left;
       border-bottom: 1px solid #fde68a;
     }
+    .ledger-table th.text-right {
+      text-align: right;
+    }
     .ledger-table td {
       padding: 9px 12px;
       font-size: 12px;
       border-bottom: 1px solid #fef3c7;
+    }
+    .ledger-table td.text-right {
+      text-align: right;
     }
     .credit-note {
       padding: 10px 16px;
