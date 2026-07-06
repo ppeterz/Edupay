@@ -131,17 +131,22 @@ export default function StudentDetailPage() {
     }
   }
 
-  // ── Loading state ──────────────────────────
-
   if (loading) {
     return (
-      <div className="p-6 lg:p-8">
-        <Skeleton className="mb-6 h-8 w-48" />
-        <Skeleton className="mb-4 h-6 w-64" />
-        <div className="space-y-3">
-          <Skeleton className="h-32 w-full rounded-lg" />
-          <Skeleton className="h-24 w-full rounded-lg" />
-          <Skeleton className="h-48 w-full rounded-lg" />
+      <div className="space-y-6 animate-pulse">
+        <Skeleton className="h-9 w-40 rounded-xl" />
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-8 w-48 rounded-xl" />
+          <Skeleton className="h-10 w-32 rounded-xl" />
+        </div>
+        <Skeleton className="h-32 w-full rounded-[28px]" />
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2 space-y-4">
+            <Skeleton className="h-44 w-full rounded-[24px]" />
+          </div>
+          <div className="lg:col-span-1 space-y-4">
+            <Skeleton className="h-44 w-full rounded-[24px]" />
+          </div>
         </div>
       </div>
     );
@@ -151,20 +156,18 @@ export default function StudentDetailPage() {
 
   if (error || !student) {
     return (
-      <div className="p-6 lg:p-8">
+      <div className="space-y-6">
         <Button
           variant="ghost"
           onClick={() => router.push('/dashboard/students')}
-          className="mb-6"
+          className="rounded-xl text-slate-550 hover:text-slate-900 border border-slate-200"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Students
         </Button>
-        <div className="rounded-lg border border-red-200 bg-red-50 p-6">
-          <div className="flex items-center gap-3 text-red-700">
-            <AlertCircle className="h-5 w-5" />
-            <p className="font-medium">{error || 'Student not found'}</p>
-          </div>
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 flex items-center gap-3 text-red-700">
+          <AlertCircle className="h-5 w-5" />
+          <p className="font-bold text-sm">{error || 'Student not found'}</p>
         </div>
       </div>
     );
@@ -173,129 +176,127 @@ export default function StudentDetailPage() {
   // ── Main content ───────────────────────────
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="space-y-6">
       {/* Back link */}
       <Button
         variant="ghost"
         onClick={() => router.push('/dashboard/students')}
-        className="mb-4"
+        className="rounded-xl text-slate-550 hover:text-slate-950 hover:bg-slate-50 border border-transparent hover:border-slate-200/55 h-9 px-3"
       >
         <ArrowLeft className="mr-2 h-4 w-4" />
         Back to Students
       </Button>
 
       {/* Header row */}
-      <div className="mb-6 flex items-start justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-slate-100">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-extrabold text-slate-955 tracking-tight">
             {student.fullName}
           </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            {student.class} &middot; {student.admissionNumber}
+          <p className="text-xs text-slate-500 font-semibold mt-1">
+            Class: <span className="text-slate-900">{student.class}</span> &middot; Admission No: <span className="font-mono text-slate-900">{student.admissionNumber}</span>
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <Button
             variant="outline"
             onClick={handleDeleteStudent}
             disabled={deleting}
-            className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+            className="rounded-xl border-red-200 text-red-650 hover:bg-red-50 hover:text-red-700 h-10 px-4 font-semibold text-xs"
           >
             {deleting ? 'Deleting...' : 'Delete Student'}
           </Button>
-          <Button onClick={() => setDialogOpen(true)}>
+          <Button 
+            onClick={() => setDialogOpen(true)}
+            className="rounded-xl bg-slate-950 text-white font-bold hover:bg-slate-900 shadow-md shadow-slate-950/10 h-10 px-4 text-xs"
+          >
             <Plus className="mr-2 h-4 w-4" />
             Create Invoice
           </Button>
         </div>
       </div>
 
-      {/* Virtual account info card */}
-      <Card className="mb-6">
-        <CardHeader className="pb-2">
-          <h2 className="text-sm font-semibold text-gray-900">
-            Virtual Account
-          </h2>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
-                Account Number
-              </p>
-              <div className="mt-1 flex items-center gap-2">
-                <span className="font-mono text-base font-bold text-gray-900">
-                  {student.virtualAccountNumber}
-                </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={copyAccountNumber}
-                  title="Copy account number"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                </Button>
-                {copied && (
-                  <span className="text-xs text-green-600">Copied!</span>
-                )}
-              </div>
-            </div>
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
-                Bank
-              </p>
-              <p className="mt-1 text-sm font-medium text-gray-900">
-                {student.virtualAccountBankName}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
-                Reference
-              </p>
-              <p className="mt-1 font-mono text-xs text-gray-500">
-                {student.virtualAccountReference}
-              </p>
+      {/* Virtual account info card styled like a premium credit card */}
+      <div className="relative rounded-[28px] bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-white p-6 shadow-xl overflow-hidden border border-slate-850 select-none">
+        <div className="absolute top-0 right-0 w-44 h-44 rounded-full bg-blue-500/5 blur-3xl pointer-events-none" />
+        <div className="flex justify-between items-start">
+          <div>
+            <p className="text-[9px] uppercase font-bold text-slate-500 tracking-wider">Edupay Virtual Account</p>
+            <h3 className="text-sm font-bold text-slate-350 mt-1">{student.virtualAccountBankName ?? 'Nomba Partner Bank'}</h3>
+          </div>
+          <span className="text-lg font-extrabold tracking-tight text-white opacity-80">₦</span>
+        </div>
+
+        <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3 items-end">
+          <div>
+            <p className="text-[8px] uppercase font-bold text-slate-500 tracking-wider">Account Number</p>
+            <div className="mt-1.5 flex items-center gap-2">
+              <span className="font-mono text-xl font-bold tracking-wider text-white">
+                {student.virtualAccountNumber}
+              </span>
+              <button
+                type="button"
+                className="p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                onClick={copyAccountNumber}
+                title="Copy account number"
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </button>
+              {copied && (
+                <span className="text-[10px] text-emerald-400 font-bold animate-pulse">Copied!</span>
+              )}
             </div>
           </div>
-        </CardContent>
-      </Card>
+          
+          <div>
+            <p className="text-[8px] uppercase font-bold text-slate-500 tracking-wider">Account Reference</p>
+            <p className="mt-1.5 font-mono text-xs text-slate-350 truncate">
+              {student.virtualAccountReference}
+            </p>
+          </div>
+
+          <div className="text-left sm:text-right">
+            <span className="inline-flex items-center rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 text-[9px] font-bold text-emerald-400 uppercase tracking-wide">
+              Active Virtual Account
+            </span>
+          </div>
+        </div>
+      </div>
 
       {/* Balances, Timeline & Invoices Grid */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 items-start">
         {/* Invoices List */}
-        <div className="lg:col-span-2">
-          <h2 className="mb-4 text-lg font-semibold text-gray-900">
-            Invoices
+        <div className="lg:col-span-2 space-y-4">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Student Invoices
           </h2>
 
           {invoicesError ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-              <div className="flex items-center gap-2 text-red-700">
-                <AlertCircle className="h-4 w-4" />
-                <p className="text-sm font-medium">Failed to load invoices</p>
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-5 flex items-center gap-3 text-red-700">
+              <AlertCircle className="h-5 w-5" />
+              <div>
+                <p className="text-xs font-bold">Failed to load invoices</p>
+                <p className="text-[10px] mt-0.5 text-red-650 font-semibold">{invoicesError}</p>
               </div>
-              <p className="mt-1 text-xs text-red-600">{invoicesError}</p>
             </div>
           ) : invoicesLoading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-48 w-full rounded-lg" />
-              <Skeleton className="h-48 w-full rounded-lg" />
+            <div className="space-y-4">
+              <Skeleton className="h-44 w-full rounded-[24px]" />
+              <Skeleton className="h-44 w-full rounded-[24px]" />
             </div>
           ) : invoices.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white py-12">
-              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
-                <FileText className="h-7 w-7 text-gray-400" />
+            <div className="flex flex-col items-center justify-center rounded-[24px] border border-dashed border-slate-200 bg-white py-12 px-4 select-none">
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 border border-slate-100">
+                <FileText className="h-6 w-6 text-slate-400" />
               </div>
-              <h3 className="text-base font-medium text-gray-900">
+              <h3 className="text-xs font-bold text-slate-900">
                 No invoices created yet
               </h3>
-              <p className="mt-1 text-sm text-gray-500">
-                Create the first invoice to start tracking payments
+              <p className="mt-1 text-[10px] text-slate-500 font-medium">
+                Create the first invoice to start tracking payments.
               </p>
               <Button
-                className="mt-4"
+                className="mt-4 rounded-xl bg-slate-950 text-white font-bold hover:bg-slate-900 shadow text-xs h-9 px-4"
                 size="sm"
                 onClick={() => setDialogOpen(true)}
               >
@@ -324,20 +325,17 @@ export default function StudentDetailPage() {
         </div>
       </div>
 
-
       {/* Create invoice dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg rounded-2xl p-6">
           <DialogHeader>
-            <DialogTitle>Create Invoice</DialogTitle>
+            <DialogTitle className="text-lg font-bold text-slate-950">Create Invoice</DialogTitle>
           </DialogHeader>
           <CreateInvoiceForm
             studentId={studentId}
             studentName={student.fullName}
             onSuccess={() => {
               setDialogOpen(false);
-              // Invoice list auto-updates via onSnapshot
-              // Re-fetch student to get updated outstandingBalance
               fetchStudentData();
             }}
             onCancel={() => setDialogOpen(false)}
@@ -347,9 +345,9 @@ export default function StudentDetailPage() {
 
       {/* Edit invoice dialog */}
       <Dialog open={!!editingInvoice} onOpenChange={(open) => !open && setEditingInvoice(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg rounded-2xl p-6">
           <DialogHeader>
-            <DialogTitle>Edit Invoice</DialogTitle>
+            <DialogTitle className="text-lg font-bold text-slate-950">Edit Invoice</DialogTitle>
           </DialogHeader>
           {editingInvoice && (
             <EditInvoiceForm

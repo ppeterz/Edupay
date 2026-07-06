@@ -187,18 +187,18 @@ export default function ReportsPage() {
 
   if ((authLoading || loading) && !data) {
     return (
-      <div className="p-6 lg:p-8 space-y-6">
+      <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-10 w-32" />
+          <Skeleton className="h-9 w-48 rounded-xl" />
+          <Skeleton className="h-10 w-32 rounded-xl" />
         </div>
         <div className="grid gap-4 sm:grid-cols-3">
           {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-28 rounded-lg" />
+            <Skeleton key={i} className="h-28 rounded-[24px]" />
           ))}
         </div>
-        <Skeleton className="h-72 rounded-lg" />
-        <Skeleton className="h-64 rounded-lg" />
+        <Skeleton className="h-72 rounded-[28px]" />
+        <Skeleton className="h-64 rounded-[28px]" />
       </div>
     );
   }
@@ -206,14 +206,14 @@ export default function ReportsPage() {
   // ── Render ─────────────────────────────────
 
   return (
-    <div className="p-6 lg:p-8 space-y-6">
+    <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+          <h1 className="text-2xl font-extrabold text-slate-950 tracking-tight">
             Financial Reports
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 font-medium mt-0.5">
             School collection analytics &amp; outstanding balances
           </p>
         </div>
@@ -221,9 +221,9 @@ export default function ReportsPage() {
           variant="outline"
           onClick={handleExportCSV}
           disabled={!data || data.byStudent.length === 0}
-          className="gap-2"
+          className="rounded-xl border-slate-200 bg-white hover:bg-slate-50 font-bold text-xs h-10 px-4 gap-2 shadow-sm"
         >
-          <Download className="h-4 w-4" />
+          <Download className="h-4 w-4 text-slate-500" />
           Export CSV
         </Button>
       </div>
@@ -231,16 +231,16 @@ export default function ReportsPage() {
       {/* Term / Session Selectors */}
       <div className="flex flex-wrap items-end gap-4">
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
             Term
           </label>
           <Select value={term} onValueChange={setTerm}>
-            <SelectTrigger className="w-44 border-slate-200 bg-white">
+            <SelectTrigger className="w-44 h-10 rounded-xl border-slate-200 bg-white font-semibold text-xs text-slate-800 shadow-sm">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="rounded-xl">
               {TERMS.map((t) => (
-                <SelectItem key={t} value={t}>
+                <SelectItem key={t} value={t} className="text-xs font-semibold">
                   {t}
                 </SelectItem>
               ))}
@@ -248,14 +248,14 @@ export default function ReportsPage() {
           </Select>
         </div>
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
             Session
           </label>
           <input
             type="text"
             value={session}
             onChange={(e) => setSession(e.target.value)}
-            className="h-9 w-36 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400"
+            className="h-10 w-36 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-800 shadow-sm focus:outline-none focus:ring-1 focus:ring-slate-300"
             placeholder="e.g. 2025/2026"
           />
         </div>
@@ -263,30 +263,30 @@ export default function ReportsPage() {
 
       {/* Error state */}
       {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          <AlertCircle className="h-4 w-4 flex-shrink-0" />
-          {error}
+        <div className="flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50/50 px-4 py-3 text-xs text-red-750 font-bold">
+          <AlertCircle className="h-4.5 w-4.5 flex-shrink-0" />
+          <span>{error}</span>
         </div>
       )}
 
       {/* Empty state */}
       {data && data.byClass.length === 0 && !loading && (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white py-16">
-          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
-            <FileText className="h-8 w-8 text-slate-400" />
+        <div className="flex flex-col items-center justify-center rounded-[28px] border border-dashed border-slate-200 bg-white py-16 px-4 select-none">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-50 border border-slate-100">
+            <FileText className="h-7 w-7 text-slate-400" />
           </div>
-          <h3 className="text-lg font-medium text-slate-900">
+          <h3 className="text-xs font-bold text-slate-900">
             No invoices found
           </h3>
-          <p className="mt-2 text-sm text-slate-500">
-            No invoices found for {term} — {session}.
+          <p className="mt-1 text-[10px] text-slate-500 font-medium text-center">
+            No active invoices found for {term} &middot; {session}.
           </p>
           <Button
             variant="link"
-            className="mt-3 text-slate-700"
+            className="mt-3 text-xs font-bold text-blue-650 hover:text-blue-700"
             onClick={() => router.push('/dashboard/invoices')}
           >
-            Create one from the Invoicing page →
+            Create invoices from the Class Invoicing page →
           </Button>
         </div>
       )}
@@ -294,47 +294,47 @@ export default function ReportsPage() {
       {/* Summary Cards */}
       {data && data.byClass.length > 0 && (
         <>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-5 sm:grid-cols-3">
             {/* Total Due */}
-            <Card className="border-slate-200 shadow-sm">
-              <CardHeader className="pb-2">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <Card className="rounded-[24px] border-slate-200/50 shadow-sm bg-white overflow-hidden">
+              <CardHeader className="pb-2 pt-5 px-5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   Total Due
                 </p>
               </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold text-slate-900 font-mono tabular-nums">
+              <CardContent className="pb-5 px-5">
+                <p className="text-2xl font-extrabold text-slate-950 font-mono tracking-tight">
                   {kobotoNaira(data.totalDue)}
                 </p>
               </CardContent>
             </Card>
 
             {/* Total Collected */}
-            <Card className="border-slate-200 shadow-sm">
-              <CardHeader className="pb-2">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <Card className="rounded-[24px] border-slate-200/50 shadow-sm bg-white overflow-hidden">
+              <CardHeader className="pb-2 pt-5 px-5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   Total Collected
                 </p>
               </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold text-green-700 font-mono tabular-nums">
+              <CardContent className="pb-5 px-5">
+                <p className="text-2xl font-extrabold text-emerald-600 font-mono tracking-tight">
                   {kobotoNaira(data.totalCollected)}
                 </p>
               </CardContent>
             </Card>
 
             {/* Collection Rate — visually prominent */}
-            <Card className="border-slate-700 bg-slate-900 shadow-md">
-              <CardHeader className="pb-2">
+            <Card className="rounded-[24px] bg-slate-950 text-white shadow-xl shadow-slate-950/10 overflow-hidden">
+              <CardHeader className="pb-2 pt-5 px-5">
                 <div className="flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-slate-400" />
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  <TrendingUp className="h-4 w-4 text-emerald-400" />
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     Collection Rate
                   </p>
                 </div>
               </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-extrabold text-white font-mono tabular-nums">
+              <CardContent className="pb-5 px-5">
+                <p className="text-3xl font-black text-white font-mono tracking-tight">
                   {data.collectionRate}%
                 </p>
               </CardContent>
@@ -342,53 +342,54 @@ export default function ReportsPage() {
           </div>
 
           {/* Bar Chart — Collection by Class */}
-          <Card className="border-slate-200 shadow-sm">
-            <CardHeader className="border-b border-slate-100 pb-3">
+          <Card className="rounded-[28px] border-slate-200/50 shadow-sm bg-white overflow-hidden">
+            <CardHeader className="border-b border-slate-50/50 pb-3 p-5">
               <div className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-slate-500" />
-                <h3 className="text-sm font-semibold text-slate-900">
+                <BarChart3 className="h-4.5 w-4.5 text-slate-500" />
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                   Collection by Class
                 </h3>
               </div>
             </CardHeader>
-            <CardContent className="pt-6">
+            <CardContent className="pt-6 p-5">
               <ResponsiveContainer width="100%" height={320}>
                 <BarChart
                   data={chartData}
                   margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                   <XAxis
                     dataKey="class"
-                    tick={{ fontSize: 11, fill: '#64748b' }}
+                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }}
                     tickLine={false}
                   />
                   <YAxis
-                    tick={{ fontSize: 11, fill: '#64748b' }}
+                    tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }}
                     tickLine={false}
                     tickFormatter={(v: number) => `₦${(v / 100).toLocaleString()}`}
                   />
                   <Tooltip
                     formatter={chartTooltipFormatter}
-                    labelStyle={{ fontWeight: 600 }}
+                    labelStyle={{ fontWeight: 700, fontSize: '11px', color: '#0f172a' }}
                     contentStyle={{
-                      borderRadius: '8px',
+                      borderRadius: '16px',
                       border: '1px solid #e2e8f0',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                      padding: '8px 12px',
                     }}
                   />
                   <Legend
-                    wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }}
+                    wrapperStyle={{ fontSize: '11px', paddingTop: '16px', fontWeight: 600 }}
                   />
                   <Bar
                     dataKey="Total Due"
                     fill="#cbd5e1"
-                    radius={[4, 4, 0, 0]}
+                    radius={[6, 6, 0, 0]}
                   />
                   <Bar
                     dataKey="Total Collected"
-                    fill="#1e40af"
-                    radius={[4, 4, 0, 0]}
+                    fill="#3b82f6"
+                    radius={[6, 6, 0, 0]}
                   />
                 </BarChart>
               </ResponsiveContainer>
@@ -396,26 +397,26 @@ export default function ReportsPage() {
           </Card>
 
           {/* Outstanding Students Table */}
-          <Card className="border-slate-200 shadow-sm">
-            <CardHeader className="border-b border-slate-100 pb-3">
+          <Card className="rounded-[28px] border-slate-200/50 shadow-sm bg-white overflow-hidden">
+            <CardHeader className="border-b border-slate-50/50 pb-3 p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold text-slate-900">
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                   Outstanding Students
                 </h3>
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                <div className="flex items-center gap-2.5 text-xs text-slate-500 font-semibold">
+                  <SlidersHorizontal className="h-3.5 w-3.5 text-slate-450" />
                   <span>Class:</span>
                   <Select
                     value={classFilter}
                     onValueChange={setClassFilter}
                   >
-                    <SelectTrigger className="w-40 h-8 text-xs border-slate-200 bg-white">
+                    <SelectTrigger className="w-40 h-8 text-xs font-semibold border-slate-200 bg-white rounded-lg">
                       <SelectValue placeholder="All Classes" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Classes</SelectItem>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="all" className="text-xs font-semibold">All Classes</SelectItem>
                       {ALL_CLASSES.map((cls) => (
-                        <SelectItem key={cls} value={cls}>
+                        <SelectItem key={cls} value={cls} className="text-xs font-semibold">
                           {cls}
                         </SelectItem>
                       ))}
@@ -426,42 +427,42 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent className="p-0">
               {filteredStudents.length === 0 ? (
-                <div className="py-12 text-center text-sm text-slate-500">
+                <div className="py-12 text-center text-xs font-semibold text-slate-500">
                   No outstanding students in this category
                 </div>
               ) : (
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="bg-slate-50/50">
                     <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Class</TableHead>
-                      <TableHead className="text-right">
+                      <TableHead className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pl-6">Name</TableHead>
+                      <TableHead className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Class</TableHead>
+                      <TableHead className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-right">
                         Outstanding
                       </TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pr-6">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredStudents.map((row) => (
                       <TableRow
                         key={row.studentId}
-                        className="cursor-pointer hover:bg-slate-50"
+                        className="cursor-pointer hover:bg-slate-50/40 border-b border-slate-100/50 last:border-b-0"
                         onClick={() =>
                           router.push(
                             `/dashboard/students/${row.studentId}`
                           )
                         }
                       >
-                        <TableCell className="font-semibold text-slate-900">
+                        <TableCell className="font-bold text-slate-900 pl-6 text-sm">
                           {row.fullName}
                         </TableCell>
-                        <TableCell className="text-slate-600">
+                        <TableCell className="text-slate-600 text-xs font-semibold">
                           {row.class}
                         </TableCell>
-                        <TableCell className="text-right font-mono font-semibold tabular-nums text-red-600">
+                        <TableCell className="text-right font-mono font-extrabold text-red-650 tracking-tight">
                           {kobotoNaira(row.outstanding)}
                         </TableCell>
-                        <TableCell>{statusBadge(row.status)}</TableCell>
+                        <TableCell className="pr-6">{statusBadge(row.status)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

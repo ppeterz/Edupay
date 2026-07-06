@@ -155,9 +155,9 @@ function ReviewContent() {
 
   if (!className) {
     return (
-      <div className="p-6">
-        <p className="text-red-500">No class selected for review.</p>
-        <Button onClick={() => router.push('/dashboard/invoices')} className="mt-4">
+      <div className="p-6 text-center">
+        <p className="text-sm font-bold text-red-650">No class selected for review.</p>
+        <Button onClick={() => router.push('/dashboard/invoices')} className="mt-4 rounded-xl">
           Go Back
         </Button>
       </div>
@@ -167,19 +167,20 @@ function ReviewContent() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
         <Button
           variant="outline"
           size="icon"
           onClick={() => (students ? setStudents(null) : router.push('/dashboard/invoices'))}
+          className="rounded-xl border-slate-205 h-9 w-9 bg-white"
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-extrabold text-slate-955 tracking-tight">
             Invoice Review — {className}
           </h1>
-          <p className="text-sm text-gray-500">
+          <p className="text-xs text-slate-500 font-medium mt-0.5">
             Review and selectively update existing student invoices
           </p>
         </div>
@@ -189,11 +190,16 @@ function ReviewContent() {
         /* Review table */
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-600">
-              Showing <span className="font-medium">{students.length}</span> students with invoices for{' '}
-              <span className="font-medium">{term} — {session}</span>
+            <p className="text-xs text-slate-500 font-semibold">
+              Showing <span className="font-bold text-slate-950">{students.length}</span> students with invoices for{' '}
+              <span className="font-bold text-slate-900">{term} — {session}</span>
             </p>
-            <Button variant="outline" size="sm" onClick={() => setStudents(null)}>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setStudents(null)}
+              className="rounded-xl border-slate-200 bg-white font-bold text-xs h-8 px-3"
+            >
               Change term/session
             </Button>
           </div>
@@ -206,56 +212,62 @@ function ReviewContent() {
             )}
           />
 
-          <Button variant="outline" onClick={() => router.push('/dashboard/invoices')}>
-            Done
-          </Button>
+          <div className="pt-4 border-t border-slate-100">
+            <Button 
+              variant="outline" 
+              onClick={() => router.push('/dashboard/invoices')}
+              className="rounded-xl border-slate-200 bg-white font-bold text-xs h-10 px-5"
+            >
+              Done
+            </Button>
+          </div>
         </div>
       ) : (
         /* Term/session selector */
-        <Card>
-          <CardContent className="space-y-6 pt-6">
-            <div className="rounded-md border border-gray-100 bg-gray-50 p-4">
-              <p className="text-sm text-gray-600">
-                Specify the term and session to retrieve generated student invoices for{' '}
-                <span className="font-semibold">{className}</span>.
+        <Card className="rounded-[28px] border-slate-200/50 shadow-sm bg-white overflow-hidden">
+          <CardContent className="space-y-6 p-6">
+            <div className="rounded-2xl border border-slate-200/40 bg-slate-50/50 p-4">
+              <p className="text-xs text-slate-600 font-semibold leading-relaxed">
+                Specify the academic term and session to retrieve generated student invoices for{' '}
+                <span className="font-bold text-slate-900">{className}</span>.
                 {lastUsed && (
-                  <span className="block mt-1 text-xs text-gray-400">
+                  <span className="block mt-1 text-[10px] text-slate-400 font-bold">
                     Pre-filled from your last invoice action.
                   </span>
                 )}
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-2">
-                <Label htmlFor="review-term">Term</Label>
+                <Label htmlFor="review-term" className="text-xs font-bold uppercase tracking-wider text-slate-400">Term</Label>
                 <Select value={term} onValueChange={setTerm}>
-                  <SelectTrigger id="review-term">
+                  <SelectTrigger id="review-term" className="w-full h-11 rounded-xl border-slate-200 bg-white font-semibold text-sm">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl">
                     {TERM_OPTIONS.map((t) => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                      <SelectItem key={t} value={t} className="text-xs font-semibold">{t}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="review-session">Session</Label>
+                <Label htmlFor="review-session" className="text-xs font-bold uppercase tracking-wider text-slate-400">Session</Label>
                 {sessionsLoading ? (
-                  <div className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground">
+                  <div className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-400">
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Loading sessions…
+                    <span>Loading sessions…</span>
                   </div>
                 ) : (
                   <Select value={session} onValueChange={setSession}>
-                    <SelectTrigger id="review-session">
+                    <SelectTrigger id="review-session" className="w-full h-11 rounded-xl border-slate-200 bg-white font-semibold text-sm">
                       <SelectValue placeholder="Select session" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="rounded-xl">
                       {sessionsList.map((s) => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                        <SelectItem key={s} value={s} className="text-xs font-semibold">{s}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -264,21 +276,26 @@ function ReviewContent() {
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
-                <AlertTriangle className="h-4 w-4 shrink-0" />
-                {error}
+              <div className="flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50/50 px-4 py-3 text-xs text-red-750 font-bold">
+                <AlertTriangle className="h-4.5 w-4.5 shrink-0" />
+                <span>{error}</span>
               </div>
             )}
 
-            <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
+            <div className="flex justify-end gap-2.5 border-t border-slate-100 pt-5">
               <Button
                 variant="outline"
                 onClick={() => router.push('/dashboard/invoices')}
                 disabled={loading}
+                className="rounded-xl border-slate-200 bg-white hover:bg-slate-50 font-bold text-xs h-10 px-4"
               >
                 Cancel
               </Button>
-              <Button onClick={() => loadInvoices()} disabled={loading || !session}>
+              <Button 
+                onClick={() => loadInvoices()} 
+                disabled={loading || !session}
+                className="rounded-xl bg-slate-950 text-white font-bold hover:bg-slate-900 shadow h-10 px-5 text-xs"
+              >
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -298,11 +315,11 @@ function ReviewContent() {
 
 export default function ReviewPage() {
   return (
-    <div className="p-6 lg:p-8 max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto">
       <Suspense
         fallback={
-          <div className="flex h-screen items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <div className="flex min-h-[400px] items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
           </div>
         }
       >

@@ -10,6 +10,7 @@ export interface School {
   email: string;
   createdAt: string;
   lastUsedTermSession?: { term: string; session: string };
+  bankAccount?: SchoolBankAccount;
 }
 
 export interface Student {
@@ -218,4 +219,29 @@ export interface WebhookError {
   error: string;
   createdAt: string;
 }
+
+// ── Withdrawal & Bank Account Types ──────────
+
+export interface SchoolBankAccount {
+  accountNumber: string;
+  accountName: string;
+  bankCode: string;
+  bankName: string;
+  verifiedAt: string;
+}
+
+export interface Withdrawal {
+  id: string;
+  schoolId: string;
+  amountRequested: number;      // kobo
+  balanceAtRequestTime: number; // kobo
+  bankAccount: SchoolBankAccount;
+  merchantTxRef: string;        // idempotency key
+  nombaTransferId?: string;     // set once initiateTransfer() responds (data.id)
+  status: 'pending' | 'processing' | 'success' | 'failed';
+  requestedAt: string;
+  resolvedAt?: string;
+  failureReason?: string;
+}
+
 

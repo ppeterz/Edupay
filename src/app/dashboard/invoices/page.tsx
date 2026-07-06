@@ -142,57 +142,58 @@ export default function InvoicingPage() {
     }
   }, [user, term, session]);
 
-  // Auto-load when term+session are present (including from lastUsedTermSession)
+  // Auto-load when term+session are present
   useEffect(() => {
     if (term && session) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadStats();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // run once on mount with pre-filled values
+  }, [term, session, loadStats]);
 
   return (
-    <div className="p-6 lg:p-8 space-y-6">
+    <div className="space-y-6">
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Class Invoicing</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-2xl font-extrabold text-slate-950 tracking-tight">Class Invoicing</h1>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">
             Invoice status at a glance — select a term and session to load
           </p>
         </div>
-        <Button onClick={() => router.push('/dashboard/invoices/create')}>
+        <Button 
+          onClick={() => router.push('/dashboard/invoices/create')}
+          className="rounded-xl bg-slate-950 text-white font-bold hover:bg-slate-900 shadow-md shadow-slate-950/10 h-10 px-4 text-xs"
+        >
           <Plus className="mr-2 h-4 w-4" />
           Create Bulk Invoice
         </Button>
       </div>
 
       {/* Term / Session selector */}
-      <Card>
-        <CardContent className="pt-5 pb-5">
+      <Card className="rounded-[24px] border-slate-200/50 bg-[#e2edf8]/20 shadow-none">
+        <CardContent className="p-5">
           <div className="flex flex-wrap items-end gap-4">
             <div className="space-y-1.5 min-w-[160px]">
-              <Label htmlFor="grid-term">Term</Label>
+              <Label htmlFor="grid-term" className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Term</Label>
               <Select value={term} onValueChange={setTerm}>
-                <SelectTrigger id="grid-term" className="w-[180px]">
+                <SelectTrigger id="grid-term" className="w-[180px] h-10 rounded-xl border-slate-200 bg-white shadow-sm font-semibold text-xs text-slate-800">
                   <SelectValue placeholder="Select term" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl">
                   {TERM_OPTIONS.map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                    <SelectItem key={t} value={t} className="text-xs font-semibold">{t}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-1.5 min-w-[140px]">
-              <Label htmlFor="grid-session">Session</Label>
+              <Label htmlFor="grid-session" className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Session</Label>
               <Input
                 id="grid-session"
                 placeholder="2025/2026"
                 value={session}
                 onChange={(e) => setSession(e.target.value)}
-                className="w-[160px]"
+                className="w-[160px] h-10 rounded-xl border-slate-200 bg-white shadow-sm font-semibold text-xs text-slate-850 px-3.5"
               />
             </div>
 
@@ -200,11 +201,12 @@ export default function InvoicingPage() {
               onClick={loadStats}
               disabled={!term || !session || loading}
               variant="outline"
+              className="rounded-xl border-slate-200 bg-white hover:bg-slate-50 font-bold text-xs h-10 px-4 shadow-sm"
             >
               {loading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="mr-2 h-4 w-4 animate-spin text-slate-550" />
               ) : (
-                <RefreshCw className="mr-2 h-4 w-4" />
+                <RefreshCw className="mr-2 h-4 w-4 text-slate-550" />
               )}
               Load Status
             </Button>
@@ -213,19 +215,21 @@ export default function InvoicingPage() {
       </Card>
 
       {/* Class structure grid */}
-      <div className="space-y-3">
-        <h2 className="text-base font-semibold text-gray-900">Class Structure</h2>
-        <p className="text-sm text-gray-500">
-          Click any class to review and update existing invoices
-        </p>
+      <div className="space-y-4 pt-2">
+        <div>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">Class Structure</h2>
+          <p className="text-[11px] text-slate-450 font-semibold mt-0.5">
+            Click any class to review and update existing invoices
+          </p>
+        </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {CATEGORY_KEYS.map((category) => (
-            <Card key={category}>
-              <CardHeader className="pb-2">
-                <h3 className="text-sm font-semibold text-gray-900">{category}</h3>
+            <Card key={category} className="rounded-[24px] border-slate-200/50 shadow-sm bg-white overflow-hidden">
+              <CardHeader className="pb-3 border-b border-slate-50/50 px-5 pt-5">
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">{category}</h3>
               </CardHeader>
-              <CardContent className="space-y-1.5">
+              <CardContent className="space-y-2.5 p-5">
                 {CLASS_CATEGORIES[category].map((cls) => {
                   const stats = statsMap?.[cls];
                   return (
@@ -237,15 +241,15 @@ export default function InvoicingPage() {
                           `/dashboard/invoices/review?class=${encodeURIComponent(cls)}`
                         )
                       }
-                      className="w-full rounded-md bg-gray-50 px-3 py-2 text-left transition-colors hover:bg-gray-100 group"
+                      className="w-full rounded-2xl bg-slate-50 border border-slate-100/50 px-4 py-3 text-left transition-all hover:bg-slate-100 hover:scale-[1.02] active:scale-[0.98] group flex flex-col justify-between min-h-[64px]"
                     >
                       {/* Class name row */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-800 group-hover:text-gray-900">
+                      <div className="flex items-center justify-between w-full">
+                        <span className="text-xs font-bold text-slate-900 group-hover:text-black">
                           {cls}
                         </span>
                         {stats && (
-                          <span className="flex items-center gap-1 text-xs text-gray-500">
+                          <span className="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold">
                             <Users className="h-3 w-3" />
                             {stats.studentCount}
                           </span>
@@ -254,18 +258,18 @@ export default function InvoicingPage() {
 
                       {/* Status + amounts row */}
                       {stats && statsMap ? (
-                        <div className="mt-1 space-y-0.5">
+                        <div className="mt-2 space-y-1 w-full">
                           <ClassStatusDot status={stats.status} />
                           {stats.totalDue > 0 && (
-                            <p className="text-[11px] text-gray-500 tabular-nums">
-                              {kobotoNaira(stats.totalPaid)} / {kobotoNaira(stats.totalDue)} collected
+                            <p className="text-[10px] text-slate-450 font-mono font-semibold tabular-nums mt-1">
+                              {kobotoNaira(stats.totalPaid)} / {kobotoNaira(stats.totalDue)}
                             </p>
                           )}
                         </div>
                       ) : loading ? (
-                        <div className="mt-1 flex items-center gap-1 text-[11px] text-gray-400">
+                        <div className="mt-2 flex items-center gap-1.5 text-[10px] text-slate-400 font-semibold">
                           <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                          Loading…
+                          <span>Loading…</span>
                         </div>
                       ) : null}
                     </button>
@@ -277,9 +281,12 @@ export default function InvoicingPage() {
         </div>
 
         {!statsMap && !loading && (
-          <p className="text-center text-sm text-gray-400 pt-4">
-            Select a term and session above, then click &quot;Load Status&quot; to see invoicing progress.
-          </p>
+          <div className="flex flex-col items-center justify-center py-14 select-none">
+            <FileText className="h-8 w-8 text-slate-400 mb-2" />
+            <p className="text-xs text-slate-550 font-bold text-center">
+              Select a term and session above, then click &quot;Load Status&quot; to see invoicing progress.
+            </p>
+          </div>
         )}
       </div>
     </div>

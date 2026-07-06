@@ -1,11 +1,8 @@
 'use client';
 
 // ──────────────────────────────────────────────
-// EduPay — Bulk Invoice Creation Wizard
+// EduPay — Premium Redesigned Bulk Invoice Wizard
 // ──────────────────────────────────────────────
-// 4-step wizard: Target → Term/Session → Line Items → Review
-// All state is held in React state — going Back never loses data.
-// Submits to existing POST /api/invoices/bulk-create unchanged.
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -41,16 +38,14 @@ import {
   AlertTriangle,
   CheckCircle2,
   Users,
+  Calendar,
 } from 'lucide-react';
-import type { Student } from '@/types';
-
-// ── Types ─────────────────────────────────────
 
 type TargetType = 'class' | 'category';
 
 const CATEGORY_KEYS = Object.keys(CLASS_CATEGORIES) as ClassCategory[];
 const TERM_OPTIONS = ['First Term', 'Second Term', 'Third Term'];
-const STEPS = ['Target', 'Term & Session', 'Line Items', 'Review'] as const;
+const STEPS = ['Target Audience', 'Academic Period', 'Fee Line Items', 'Summary Review'] as const;
 
 interface LineItemRow {
   key: number;
@@ -69,11 +64,9 @@ function getDefaultLineItems(): LineItemRow[] {
   ];
 }
 
-// ── Step Indicator ────────────────────────────
-
 function StepIndicator({ current }: { current: number }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-3 select-none mb-6">
       {STEPS.map((label, idx) => {
         const stepNum = idx + 1;
         const done = stepNum < current;
@@ -81,27 +74,27 @@ function StepIndicator({ current }: { current: number }) {
         return (
           <div key={label} className="flex items-center gap-2">
             <div
-              className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold shrink-0 ${
+              className={`flex h-8 w-8 items-center justify-center rounded-xl text-xs font-bold transition-all duration-300 ${
                 done
-                  ? 'bg-primary text-primary-foreground'
+                  ? 'bg-slate-950 text-white'
                   : active
-                  ? 'ring-2 ring-primary bg-primary text-primary-foreground'
-                  : 'bg-gray-100 text-gray-400'
+                  ? 'bg-blue-600 text-white ring-4 ring-blue-600/15'
+                  : 'bg-slate-100 text-slate-400 border border-slate-200/50'
               }`}
             >
-              {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : stepNum}
+              {done ? <CheckCircle2 className="h-4 w-4" /> : stepNum}
             </div>
             <span
-              className={`hidden sm:inline text-xs font-medium ${
-                active ? 'text-gray-900' : done ? 'text-gray-500' : 'text-gray-400'
+              className={`hidden md:inline text-xs font-bold tracking-tight ${
+                active ? 'text-slate-950' : done ? 'text-slate-500' : 'text-slate-400'
               }`}
             >
               {label}
             </span>
             {idx < STEPS.length - 1 && (
               <div
-                className={`hidden sm:block h-px w-6 ${
-                  done ? 'bg-primary' : 'bg-gray-200'
+                className={`hidden md:block h-0.5 w-6 rounded ${
+                  done ? 'bg-slate-950' : 'bg-slate-200'
                 }`}
               />
             )}
@@ -112,35 +105,24 @@ function StepIndicator({ current }: { current: number }) {
   );
 }
 
-// ── Main Component ────────────────────────────
-
 export default function CreateBulkInvoicePage() {
   const router = useRouter();
   const { user, school } = useAuth();
   const lastUsed = school?.lastUsedTermSession;
 
-  // Wizard step (1-4)
   const [step, setStep] = useState(1);
-
-  // Step 1 state
   const [targetType, setTargetType] = useState<TargetType>('class');
   const [targetValue, setTargetValue] = useState('');
   const [studentCount, setStudentCount] = useState<number | null>(null);
   const [classCount, setClassCount] = useState<number | null>(null);
   const [countLoading, setCountLoading] = useState(false);
 
-  // Step 2 state
   const [term, setTerm] = useState(lastUsed?.term ?? '');
   const [session, setSession] = useState(lastUsed?.session ?? '');
 
-  // Step 3 state
   const [lineItems, setLineItems] = useState<LineItemRow[]>(getDefaultLineItems);
-
-  // Submit state
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
-
-  // ── Student count lookup ───────────────────
 
   const fetchCount = useCallback(async (type: TargetType, value: string) => {
     if (!user || !value) { setStudentCount(null); setClassCount(null); return; }
@@ -168,15 +150,12 @@ export default function CreateBulkInvoicePage() {
   }, [user]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (targetValue) fetchCount(targetType, targetValue);
     else {
       setStudentCount(null);
       setClassCount(null);
     }
   }, [targetType, targetValue, fetchCount]);
-
-  // ── Line item operations ───────────────────
 
   function updateItem(key: number, field: keyof Omit<LineItemRow, 'key'>, value: string) {
     setLineItems((prev) => prev.map((li) => li.key === key ? { ...li, [field]: value } : li));
@@ -202,8 +181,6 @@ export default function CreateBulkInvoicePage() {
       return next;
     });
   }
-
-  // ── Validation per step ────────────────────
 
   function validateStep1(): string | null {
     if (!targetValue) return 'Please select a target class or category';
@@ -251,8 +228,6 @@ export default function CreateBulkInvoicePage() {
     setStep((s) => Math.max(s - 1, 1));
   }
 
-  // ── Derived totals for review ──────────────
-
   const totalPerStudent = lineItems.reduce((sum, li) => {
     const amt = parseFloat(li.amountDue);
     return sum + (isNaN(amt) ? 0 : nairaToKobo(amt));
@@ -263,8 +238,6 @@ export default function CreateBulkInvoicePage() {
     targetType === 'class'
       ? targetValue
       : `${targetValue} (${classCount ?? '?'} classes)`;
-
-  // ── Submit ─────────────────────────────────
 
   async function handleSubmit() {
     setSubmitting(true);
@@ -279,7 +252,6 @@ export default function CreateBulkInvoicePage() {
         return;
       }
 
-      // Priority is derived from list position (top = 1)
       const lineItemsPayload = lineItems.map((li, idx) => ({
         description: li.description.trim(),
         amountDue: parseFloat(li.amountDue),
@@ -308,13 +280,10 @@ export default function CreateBulkInvoicePage() {
         return;
       }
 
-      // If runId is null (run-doc persistence failed), store payload in sessionStorage
       if (!data.runId) {
         try {
           sessionStorage.setItem('bulk_run_fallback', JSON.stringify(data));
-        } catch {
-          // sessionStorage unavailable — ignore, we'll show the graceful message
-        }
+        } catch {}
         router.push('/dashboard/invoices/results/fallback');
       } else {
         router.push(`/dashboard/invoices/results/${data.runId}`);
@@ -325,389 +294,400 @@ export default function CreateBulkInvoicePage() {
     }
   }
 
-  // ── Render ────────────────────────────────
-
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
-      {/* Sticky header with step indicator */}
-      <div className="sticky top-0 z-10 border-b border-gray-200 bg-white px-6 py-4 shadow-sm">
-        <div className="flex items-center justify-between max-w-3xl mx-auto">
-          <div>
-            <h1 className="text-lg font-bold text-gray-900">Create Bulk Invoice</h1>
-            <p className="text-xs text-gray-500">Step {step} of {STEPS.length}: {STEPS[step - 1]}</p>
-          </div>
-          <StepIndicator current={step} />
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-slate-100">
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-955 tracking-tight">Create Bulk Invoice</h1>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">Generate fees for multiple students simultaneously</p>
         </div>
+        <StepIndicator current={step} />
       </div>
 
-      {/* Step content */}
-      <div className="flex-1 overflow-y-auto px-6 py-8">
-        <div className="max-w-3xl mx-auto space-y-6">
+      {/* Step Contents */}
+      <div className="space-y-6">
+        {/* Step 1: Target Selection */}
+        {step === 1 && (
+          <Card className="rounded-[28px] border-slate-200/50 shadow-sm bg-white overflow-hidden">
+            <CardContent className="p-6 space-y-6">
+              <div>
+                <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">Who are you invoicing?</h2>
+                <p className="text-xs text-slate-400 font-medium mt-0.5">Choose a specific class category or class grade</p>
+              </div>
 
-          {/* ── Step 1: Target Selection ─────── */}
-          {step === 1 && (
-            <Card>
-              <CardContent className="pt-6 space-y-5">
-                <div>
-                  <h2 className="text-base font-semibold text-gray-900 mb-1">Who are you invoicing?</h2>
-                  <p className="text-sm text-gray-500">Choose a specific class or an entire category</p>
+              {/* Toggle Switch */}
+              <div className="flex gap-2 p-1 rounded-2xl bg-slate-100/70 border border-slate-200/30">
+                <button
+                  type="button"
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${
+                    targetType === 'class'
+                      ? 'bg-white text-slate-950 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                  onClick={() => { setTargetType('class'); setTargetValue(''); }}
+                >
+                  Specific Class
+                </button>
+                <button
+                  type="button"
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${
+                    targetType === 'category'
+                      ? 'bg-white text-slate-950 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                  onClick={() => { setTargetType('category'); setTargetValue(''); }}
+                >
+                  Entire Category
+                </button>
+              </div>
+
+              {/* Selection */}
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-slate-400">{targetType === 'class' ? 'Select Class' : 'Select Category'}</Label>
+                <Select value={targetValue} onValueChange={setTargetValue}>
+                  <SelectTrigger className="w-full h-11 rounded-xl border-slate-200 bg-white font-semibold text-sm">
+                    <SelectValue placeholder={targetType === 'class' ? 'Choose class grade…' : 'Choose student category…'} />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    {targetType === 'class'
+                      ? ALL_CLASSES.map((cls) => (
+                          <SelectItem key={cls} value={cls} className="text-xs font-semibold">{cls}</SelectItem>
+                        ))
+                      : CATEGORY_KEYS.map((cat) => (
+                          <SelectItem key={cat} value={cat} className="text-xs font-semibold">
+                            {cat} ({CLASS_CATEGORIES[cat].length} classes)
+                          </SelectItem>
+                        ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Live Count Badge */}
+              {targetValue && (
+                <div className="flex items-center gap-3 rounded-2xl border border-slate-200/50 bg-[#e2edf8]/20 px-4 py-3.5">
+                  {countLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                  ) : (
+                    <Users className="h-4.5 w-4.5 text-blue-600" />
+                  )}
+                  <span className="text-xs font-semibold text-slate-700">
+                    {countLoading
+                      ? 'Reconciling student count…'
+                      : studentCount !== null
+                      ? `Targets ${studentCount} active student${studentCount !== 1 ? 's' : ''}${classCount && classCount > 1 ? ` across ${classCount} classes` : ''}`
+                      : 'No students found'}
+                  </span>
                 </div>
+              )}
 
-                {/* Target type toggle */}
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant={targetType === 'class' ? 'default' : 'outline'}
-                    className="flex-1"
-                    onClick={() => { setTargetType('class'); setTargetValue(''); }}
-                  >
-                    Specific Class
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={targetType === 'category' ? 'default' : 'outline'}
-                    className="flex-1"
-                    onClick={() => { setTargetType('category'); setTargetValue(''); }}
-                  >
-                    Entire Category
-                  </Button>
-                </div>
+              {stepErrors[0] && (
+                <p className="text-xs font-bold text-red-650" role="alert">{stepErrors[0]}</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
-                {/* Target value dropdown */}
-                <div className="space-y-1.5">
-                  <Label>{targetType === 'class' ? 'Select Class' : 'Select Category'}</Label>
-                  <Select value={targetValue} onValueChange={setTargetValue}>
-                    <SelectTrigger>
-                      <SelectValue placeholder={targetType === 'class' ? 'Choose a class…' : 'Choose a category…'} />
+        {/* Step 2: Term & Session */}
+        {step === 2 && (
+          <Card className="rounded-[28px] border-slate-200/50 shadow-sm bg-white overflow-hidden">
+            <CardContent className="p-6 space-y-6">
+              <div>
+                <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">Term & Session</h2>
+                <p className="text-xs text-slate-400 font-medium mt-0.5">Define academic time blocks for the invoices</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div className="space-y-2">
+                  <Label htmlFor="wizard-term" className="text-xs font-bold uppercase tracking-wider text-slate-400">Academic Term</Label>
+                  <Select value={term} onValueChange={setTerm}>
+                    <SelectTrigger id="wizard-term" className="w-full h-11 rounded-xl border-slate-200 bg-white font-semibold text-sm">
+                      <SelectValue placeholder="Select term" />
                     </SelectTrigger>
-                    <SelectContent>
-                      {targetType === 'class'
-                        ? ALL_CLASSES.map((cls) => (
-                            <SelectItem key={cls} value={cls}>{cls}</SelectItem>
-                          ))
-                        : CATEGORY_KEYS.map((cat) => (
-                            <SelectItem key={cat} value={cat}>
-                              {cat} ({CLASS_CATEGORIES[cat].length} classes)
-                            </SelectItem>
-                          ))}
+                    <SelectContent className="rounded-xl">
+                      {TERM_OPTIONS.map((t) => (
+                        <SelectItem key={t} value={t} className="text-xs font-semibold">{t}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
 
-                {/* Live student count */}
-                {targetValue && (
-                  <div className="flex items-center gap-2 rounded-md border border-gray-100 bg-gray-50 px-4 py-3">
-                    {countLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                    ) : (
-                      <Users className="h-4 w-4 text-primary" />
-                    )}
-                    <span className="text-sm text-gray-700">
-                      {countLoading
-                        ? 'Counting students…'
-                        : studentCount !== null
-                        ? `This will target ${studentCount} student${studentCount !== 1 ? 's' : ''}${classCount && classCount > 1 ? ` across ${classCount} classes` : ''}`
-                        : 'No students found'}
-                    </span>
-                  </div>
-                )}
-
-                {stepErrors[0] && (
-                  <p className="text-sm text-destructive">{stepErrors[0]}</p>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* ── Step 2: Term & Session ───────── */}
-          {step === 2 && (
-            <Card>
-              <CardContent className="pt-6 space-y-5">
-                <div>
-                  <h2 className="text-base font-semibold text-gray-900 mb-1">Term & Session</h2>
-                  <p className="text-sm text-gray-500">Which academic period does this invoice cover?</p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="wizard-term">Term</Label>
-                    <Select value={term} onValueChange={setTerm}>
-                      <SelectTrigger id="wizard-term">
-                        <SelectValue placeholder="Select term" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TERM_OPTIONS.map((t) => (
-                          <SelectItem key={t} value={t}>{t}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="wizard-session">Session</Label>
-                    <Input
-                      id="wizard-session"
-                      placeholder="2025/2026"
-                      value={session}
-                      onChange={(e) => setSession(e.target.value)}
-                    />
-                    <p className="text-xs text-muted-foreground">Format: YYYY/YYYY</p>
-                  </div>
-                </div>
-
-                {lastUsed && (
-                  <p className="text-xs text-gray-500">
-                    Pre-filled from your last invoice ({lastUsed.term}, {lastUsed.session}). You can change these.
-                  </p>
-                )}
-
-                {stepErrors[1] && (
-                  <p className="text-sm text-destructive">{stepErrors[1]}</p>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* ── Step 3: Line Items ───────────── */}
-          {step === 3 && (
-            <Card>
-              <CardContent className="pt-6 space-y-4">
-                <div>
-                  <h2 className="text-base font-semibold text-gray-900 mb-1">Line Items</h2>
-                  <p className="text-sm text-gray-500">
-                    These fees apply to each student. Use the arrows to set priority order — top = highest priority.
-                  </p>
-                </div>
-
                 <div className="space-y-2">
-                  {lineItems.map((li, idx) => (
-                    <div
-                      key={li.key}
-                      className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 p-2"
-                    >
-                      {/* Reorder arrows */}
-                      <div className="flex flex-col">
-                        <button
-                          type="button"
-                          onClick={() => moveItem(li.key, 'up')}
-                          disabled={idx === 0}
-                          className="p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-30"
-                          title="Move up"
-                        >
-                          <ChevronUp className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveItem(li.key, 'down')}
-                          disabled={idx === lineItems.length - 1}
-                          className="p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-30"
-                          title="Move down"
-                        >
-                          <ChevronDown className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-
-                      {/* Priority badge */}
-                      <span className="w-5 text-center text-xs font-medium text-gray-400">
-                        {idx + 1}
-                      </span>
-
-                      {/* Description */}
-                      <Input
-                        className="flex-1 bg-white"
-                        placeholder="Description"
-                        value={li.description}
-                        onChange={(e) => updateItem(li.key, 'description', e.target.value)}
-                      />
-
-                      {/* Amount */}
-                      <div className="relative w-36">
-                        <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                          ₦
-                        </span>
-                        <Input
-                          className="bg-white pl-7"
-                          type="number"
-                          min="0"
-                          step="any"
-                          placeholder="0"
-                          value={li.amountDue}
-                          onChange={(e) => updateItem(li.key, 'amountDue', e.target.value)}
-                        />
-                      </div>
-
-                      {/* Remove */}
-                      {lineItems.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-red-500 hover:text-red-700"
-                          onClick={() => removeItem(li.key)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
+                  <Label htmlFor="wizard-session" className="text-xs font-bold uppercase tracking-wider text-slate-400">Academic Session</Label>
+                  <Input
+                    id="wizard-session"
+                    placeholder="2025/2026"
+                    value={session}
+                    onChange={(e) => setSession(e.target.value)}
+                    className="w-full h-11 rounded-xl border-slate-200 bg-white shadow-sm font-semibold text-sm px-4"
+                  />
+                  <p className="text-[10px] text-slate-450 font-semibold">Format: YYYY/YYYY (e.g., 2026/2027)</p>
                 </div>
+              </div>
 
-                <Button type="button" variant="outline" size="sm" onClick={addItem}>
-                  <Plus className="mr-1 h-3 w-3" />
+              {lastUsed && (
+                <div className="flex items-center gap-2 rounded-2xl bg-slate-50 border border-slate-100 p-3.5 text-xs text-slate-500 font-semibold">
+                  <Calendar className="h-4 w-4 text-slate-450" />
+                  <span>
+                    Pre-filled from last entry: {lastUsed.term} &middot; {lastUsed.session}
+                  </span>
+                </div>
+              )}
+
+              {stepErrors[1] && (
+                <p className="text-xs font-bold text-red-650" role="alert">{stepErrors[1]}</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Step 3: Line Items */}
+        {step === 3 && (
+          <Card className="rounded-[28px] border-slate-200/50 shadow-sm bg-white overflow-hidden">
+            <CardContent className="p-6 space-y-6">
+              <div>
+                <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">Fee Items structure</h2>
+                <p className="text-xs text-slate-400 font-medium mt-0.5">
+                  Set priority order: top positions will be settled first by reconciliation workers
+                </p>
+              </div>
+
+              <div className="space-y-3.5">
+                {lineItems.map((li, idx) => (
+                  <div
+                    key={li.key}
+                    className="flex items-center gap-2.5 rounded-2xl border border-slate-200/40 bg-slate-50/50 p-3"
+                  >
+                    {/* Move controls */}
+                    <div className="flex flex-col">
+                      <button
+                        type="button"
+                        onClick={() => moveItem(li.key, 'up')}
+                        disabled={idx === 0}
+                        className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 disabled:opacity-20"
+                        title="Move up"
+                      >
+                        <ChevronUp className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveItem(li.key, 'down')}
+                        disabled={idx === lineItems.length - 1}
+                        className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 disabled:opacity-20"
+                        title="Move down"
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    {/* Numeric Priority index */}
+                    <span className="w-6 text-center text-xs font-bold text-slate-400">
+                      {idx + 1}
+                    </span>
+
+                    {/* Input */}
+                    <Input
+                      className="flex-1 bg-white h-10 rounded-xl border-slate-200 text-sm font-semibold px-3"
+                      placeholder="e.g. Tuition fee"
+                      value={li.description}
+                      onChange={(e) => updateItem(li.key, 'description', e.target.value)}
+                    />
+
+                    {/* Cost */}
+                    <div className="relative w-36">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                        ₦
+                      </span>
+                      <Input
+                        className="bg-white pl-7 h-10 rounded-xl border-slate-200 text-sm font-bold font-mono text-right pr-3"
+                        type="number"
+                        min="0"
+                        step="any"
+                        placeholder="0"
+                        value={li.amountDue}
+                        onChange={(e) => updateItem(li.key, 'amountDue', e.target.value)}
+                      />
+                    </div>
+
+                    {/* Delete */}
+                    {lineItems.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 rounded-xl text-red-500 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => removeItem(li.key)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={addItem}
+                  className="rounded-xl border-slate-200 bg-white font-bold text-xs h-9 px-4 shadow-sm"
+                >
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
                   Add Line Item
                 </Button>
 
-                {/* Running total */}
-                <div className="rounded-md border border-gray-200 bg-white px-4 py-3 text-right">
-                  <span className="text-sm text-muted-foreground">Total per student: </span>
-                  <span className="text-lg font-bold text-gray-900">
+                {/* Total */}
+                <div className="rounded-xl border border-slate-100 bg-slate-50/50 px-4 py-2 text-right">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total per student: </span>
+                  <span className="text-base font-extrabold font-mono text-slate-950 ml-1">
                     {kobotoNaira(totalPerStudent)}
                   </span>
                 </div>
+              </div>
 
-                {stepErrors[2] && (
-                  <p className="text-sm text-destructive">{stepErrors[2]}</p>
+              {stepErrors[2] && (
+                <p className="text-xs font-bold text-red-650" role="alert">{stepErrors[2]}</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Step 4: Summary Review */}
+        {step === 4 && (
+          <div className="space-y-4">
+            <Card className="rounded-[28px] border-slate-200/50 shadow-sm bg-white overflow-hidden">
+              <CardContent className="p-6 space-y-6">
+                <div>
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">Review Invoices Settings</h2>
+                  <p className="text-xs text-slate-400 font-medium mt-0.5">Please confirm parameters before generating bulk ledger rows</p>
+                </div>
+
+                {/* Summary Alert banner */}
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/50 px-5 py-4">
+                  <p className="text-xs text-blue-900 leading-relaxed font-semibold">
+                    You are generating invoices for{' '}
+                    {classCount && classCount > 1
+                      ? `${classCount} classes (${targetLabel})`
+                      : <strong>{targetLabel}</strong>}
+                    , targeting <strong>{studentCount ?? '?'} student{(studentCount ?? 0) !== 1 ? 's' : ''}</strong> at{' '}
+                    <strong>{kobotoNaira(totalPerStudent)}</strong> each.
+                    {studentCount ? (
+                      <>
+                        {' '}Grand sum: <strong className="font-mono text-blue-950">{kobotoNaira(grandTotal)}</strong>.
+                      </>
+                    ) : null}
+                  </p>
+                </div>
+
+                {/* Grid details */}
+                <div className="space-y-2 text-xs border border-slate-100 rounded-2xl p-4 bg-slate-50/20">
+                  <div className="flex justify-between border-b border-slate-100 pb-2.5">
+                    <span className="text-slate-450 font-bold uppercase tracking-wider">Audience Target</span>
+                    <span className="font-bold text-slate-900">{targetLabel}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-100 py-2.5">
+                    <span className="text-slate-450 font-bold uppercase tracking-wider">Academic Term</span>
+                    <span className="font-bold text-slate-900">{term}</span>
+                  </div>
+                  <div className="flex justify-between pt-2.5">
+                    <span className="text-slate-450 font-bold uppercase tracking-wider">Academic Session</span>
+                    <span className="font-bold text-slate-900 font-mono">{session}</span>
+                  </div>
+                </div>
+
+                {/* Line items summary list */}
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Line Items Priorities
+                  </p>
+                  <div className="overflow-hidden rounded-2xl border border-slate-200/50 bg-white text-xs">
+                    {lineItems.map((li, idx) => (
+                      <div
+                        key={li.key}
+                        className="flex items-center justify-between px-4 py-3 border-b border-slate-100 last:border-b-0"
+                      >
+                        <span className="flex items-center gap-2 text-slate-700 font-bold">
+                          <span className="text-slate-400 w-4 font-mono">{idx + 1}.</span>
+                          {li.description}
+                        </span>
+                        <span className="font-bold font-mono text-slate-900 tabular-nums">
+                          {kobotoNaira(nairaToKobo(parseFloat(li.amountDue) || 0))}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Warning message */}
+                <div className="flex items-start gap-3 rounded-2xl border border-amber-200/60 bg-amber-50/40 p-4">
+                  <AlertTriangle className="mt-0.5 h-4.5 w-4.5 shrink-0 text-amber-600" />
+                  <p className="text-xs text-amber-800 leading-relaxed font-semibold">
+                    Invoices are safe: students who already hold a record for <strong>{term} &middot; {session}</strong> will
+                    be automatically skipped to prevent double collection.
+                  </p>
+                </div>
+
+                {submitError && (
+                  <p className="text-xs font-bold text-red-650" role="alert">{submitError}</p>
                 )}
               </CardContent>
             </Card>
-          )}
-
-          {/* ── Step 4: Review ───────────────── */}
-          {step === 4 && (
-            <div className="space-y-4">
-              <Card>
-                <CardContent className="pt-6 space-y-4">
-                  <div>
-                    <h2 className="text-base font-semibold text-gray-900 mb-1">Review before creating</h2>
-                    <p className="text-sm text-gray-500">
-                      Please confirm the details below before submitting.
-                    </p>
-                  </div>
-
-                  {/* Plain English summary */}
-                  <div className="rounded-md border border-blue-100 bg-blue-50 px-4 py-3">
-                    <p className="text-sm text-blue-900 leading-relaxed">
-                      You are about to invoice{' '}
-                      {classCount && classCount > 1
-                        ? `${classCount} classes (${targetLabel})`
-                        : <strong>{targetLabel}</strong>}
-                      ,{' '}
-                      <strong>{studentCount ?? '?'} student{(studentCount ?? 0) !== 1 ? 's' : ''}</strong>
-                      ,{' '}
-                      <strong>{kobotoNaira(totalPerStudent)}</strong> each.
-                      {studentCount ? (
-                        <>
-                          {' '}Total: <strong>{kobotoNaira(grandTotal)}</strong>.
-                        </>
-                      ) : null}
-                    </p>
-                  </div>
-
-                  {/* Details table */}
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between border-b pb-1">
-                      <span className="text-gray-500">Target</span>
-                      <span className="font-medium text-gray-900">{targetLabel}</span>
-                    </div>
-                    <div className="flex justify-between border-b pb-1">
-                      <span className="text-gray-500">Term</span>
-                      <span className="font-medium text-gray-900">{term}</span>
-                    </div>
-                    <div className="flex justify-between border-b pb-1">
-                      <span className="text-gray-500">Session</span>
-                      <span className="font-medium text-gray-900">{session}</span>
-                    </div>
-                  </div>
-
-                  {/* Line items summary */}
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5">
-                      Line Items (priority order)
-                    </p>
-                    <div className="overflow-hidden rounded-md border border-gray-200 bg-white text-sm">
-                      {lineItems.map((li, idx) => (
-                        <div
-                          key={li.key}
-                          className="flex items-center justify-between px-3 py-2 border-b border-gray-100 last:border-b-0"
-                        >
-                          <span className="flex items-center gap-2 text-gray-700">
-                            <span className="text-xs text-gray-400 w-4">{idx + 1}.</span>
-                            {li.description}
-                          </span>
-                          <span className="font-medium tabular-nums text-gray-900">
-                            {kobotoNaira(nairaToKobo(parseFloat(li.amountDue) || 0))}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                    <p className="text-xs text-amber-700">
-                      Students who already have an invoice for <strong>{term} — {session}</strong> will
-                      be automatically skipped and shown in the results.
-                    </p>
-                  </div>
-
-                  {submitError && (
-                    <p className="text-sm text-destructive">{submitError}</p>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* Sticky footer with navigation */}
-      <div className="sticky bottom-0 z-10 border-t border-gray-200 bg-white px-6 py-4 shadow-sm">
-        <div className="flex items-center justify-between max-w-3xl mx-auto">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.push('/dashboard/invoices')}
-          >
-            Cancel
-          </Button>
+      {/* Navigation action footer */}
+      <div className="flex items-center justify-between pt-6 border-t border-slate-100 mt-6">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => router.push('/dashboard/invoices')}
+          className="rounded-xl border-slate-200 bg-white hover:bg-slate-50 font-bold text-xs h-10 px-4"
+        >
+          Cancel Wizard
+        </Button>
 
-          <div className="flex gap-3">
-            {step > 1 && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={goBack}
-                disabled={submitting}
-              >
-                <ArrowLeft className="mr-1.5 h-4 w-4" />
-                Back
-              </Button>
-            )}
+        <div className="flex gap-2.5">
+          {step > 1 && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={goBack}
+              disabled={submitting}
+              className="rounded-xl border-slate-200 bg-white hover:bg-slate-50 font-bold text-xs h-10 px-4"
+            >
+              <ArrowLeft className="mr-1.5 h-4 w-4" />
+              Back
+            </Button>
+          )}
 
-            {step < 4 ? (
-              <Button type="button" onClick={tryNext}>
-                Next
-                <ArrowRight className="ml-1.5 h-4 w-4" />
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                onClick={handleSubmit}
-                disabled={submitting}
-                className="min-w-[160px]"
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating invoices…
-                  </>
-                ) : (
-                  'Create Invoices'
-                )}
-              </Button>
-            )}
-          </div>
+          {step < 4 ? (
+            <Button 
+              type="button" 
+              onClick={tryNext}
+              className="rounded-xl bg-slate-950 text-white font-bold hover:bg-slate-900 shadow-md shadow-slate-950/10 h-10 px-4 text-xs"
+            >
+              Next Step
+              <ArrowRight className="ml-1.5 h-4 w-4" />
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="min-w-[160px] rounded-xl bg-slate-950 text-white font-bold hover:bg-slate-900 shadow-md shadow-slate-950/10 h-10 px-4 text-xs"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                'Generate Invoices'
+              )}
+            </Button>
+          )}
         </div>
       </div>
     </div>

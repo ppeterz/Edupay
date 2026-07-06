@@ -75,7 +75,7 @@ test('Generate Kay Alaba receipt PDF', async () => {
     fs.writeFileSync(outputPath, buffer);
     console.log(`PDF written to: ${outputPath}`);
     expect(fs.existsSync(outputPath)).toBe(true);
-  } catch (err) {
+  } catch (err: any) {
     console.warn(`Could not write PDF to disk due to lock: ${err.message}`);
   }
 }, 30000);
@@ -143,7 +143,7 @@ test('Generate Partial Payment and Fallback Bank Receipt PDF', async () => {
     fs.writeFileSync(outputPath, buffer);
     console.log(`PDF written to: ${outputPath}`);
     expect(fs.existsSync(outputPath)).toBe(true);
-  } catch (err) {
+  } catch (err: any) {
     console.warn(`Could not write PDF to disk due to lock: ${err.message}`);
   }
 }, 30000);

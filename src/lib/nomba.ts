@@ -192,3 +192,159 @@ export async function listVirtualAccounts(): Promise<
   const data = await res.json();
   return data.responseBody ?? [];
 }
+
+export async function getSubAccountBalance(): Promise<number> {
+  const token = await getValidToken();
+  const subAccountId = process.env.NOMBA_SUB_ACCOUNT_ID ?? '';
+  const res = await fetch(`https://api.nomba.com/v1/accounts/${subAccountId}/balance`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'accountId': process.env.NOMBA_ACCOUNT_ID ?? '',
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch balance: ${res.status} ${await res.text()}`);
+  }
+  const data = await res.json();
+  if (data.code !== '00' || !data.data) {
+    throw new Error(`Failed to fetch balance: ${data.description || 'Unknown error'}`);
+  }
+  const amountNaira = parseFloat(data.data.amount);
+  if (isNaN(amountNaira)) {
+    throw new Error(`Invalid balance amount returned from Nomba: ${data.data.amount}`);
+  }
+  return Math.round(amountNaira * 100);
+}
+
+export async function listBanks(): Promise<{ name: string; code: string }[]> {
+  const token = await getValidToken();
+  const res = await fetch('https://api.nomba.com/v1/transfers/banks', {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'accountId': process.env.NOMBA_ACCOUNT_ID ?? '',
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch bank list: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.data ?? [];
+}
+
+export async function lookupBankAccount(
+  accountNumber: string,
+  bankCode: string
+): Promise<{ accountName: string }> {
+  const token = await getValidToken();
+  const res = await fetch('https://api.nomba.com/v1/transfers/bank/lookup', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'accountId': process.env.NOMBA_ACCOUNT_ID ?? '',
+    },
+    body: JSON.stringify({ accountNumber, bankCode }),
+  });
+  if (!res.ok) {
+    throw new Error(`Bank lookup failed: ${res.status} ${await res.text()}`);
+  }
+  const data = await res.json();
+  if (data.code !== '00' || !data.data) {
+    throw new Error(`Bank lookup failed: ${data.description || 'Account not found'}`);
+  }
+  return { accountName: data.data.accountName };
+}
+
+export async function initiateTransfer(params: {
+  amountKobo: number;
+  accountNumber: string;
+  accountName: string;
+  bankCode: string;
+  merchantTxRef: string;
+  narration: string;
+}): Promise<{ id: string; status: 'SUCCESS' | 'PENDING' | 'FAILED' | 'REFUND' }> {
+  const token = await getValidToken();
+  const subAccountId = process.env.NOMBA_SUB_ACCOUNT_ID ?? '';
+  
+  const amountNaira = params.amountKobo / 100;
+  
+  const res = await fetch(`https://api.nomba.com/v2/transfers/bank/${subAccountId}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'accountId': process.env.NOMBA_ACCOUNT_ID ?? '',
+    },
+    body: JSON.stringify({
+      amount: amountNaira,
+      accountNumber: params.accountNumber,
+      accountName: params.accountName,
+      bankCode: params.bankCode,
+      merchantTxRef: params.merchantTxRef,
+      senderName: 'EduPay',
+      narration: params.narration,
+    }),
+  });
+
+  const data = await res.json();
+  if (res.status !== 200 && res.status !== 201) {
+    throw new Error(`Transfer failed: ${res.status} ${JSON.stringify(data)}`);
+  }
+
+  if (!data.data) {
+    throw new Error(`Transfer failed: No transaction data returned: ${JSON.stringify(data)}`);
+  }
+
+  let mappedStatus: 'SUCCESS' | 'PENDING' | 'FAILED' | 'REFUND' = 'PENDING';
+  const statusStr = data.data.status;
+  if (statusStr === 'SUCCESS') {
+    mappedStatus = 'SUCCESS';
+  } else if (statusStr === 'FAILED') {
+    mappedStatus = 'FAILED';
+  } else if (statusStr === 'REFUND') {
+    mappedStatus = 'REFUND';
+  } else {
+    mappedStatus = 'PENDING';
+  }
+
+  return { 
+    id: data.data.id, 
+    status: mappedStatus 
+  };
+}
+
+export async function requeryTransfer(nombaTransferId: string): Promise<{ status: 'SUCCESS' | 'PENDING' | 'FAILED' | 'REFUND' }> {
+  const token = await getValidToken();
+  const subAccountId = process.env.NOMBA_SUB_ACCOUNT_ID ?? '';
+  
+  const res = await fetch(
+    `https://api.nomba.com/v1/transactions/accounts/${subAccountId}/single?transactionRef=${nombaTransferId}`,
+    {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'accountId': process.env.NOMBA_ACCOUNT_ID ?? '',
+      },
+    }
+  );
+  if (!res.ok) {
+    throw new Error(`Requery failed with status ${res.status}: ${await res.text()}`);
+  }
+  const data = await res.json();
+  if (data.code !== '00' || !data.data) {
+    throw new Error(`Requery failed: ${data.description || 'Unknown error'}`);
+  }
+
+  let mappedStatus: 'SUCCESS' | 'PENDING' | 'FAILED' | 'REFUND' = 'PENDING';
+  const statusStr = data.data.status;
+  if (statusStr === 'SUCCESS') {
+    mappedStatus = 'SUCCESS';
+  } else if (statusStr === 'FAILED') {
+    mappedStatus = 'FAILED';
+  } else if (statusStr === 'REFUND') {
+    mappedStatus = 'REFUND';
+  } else {
+    mappedStatus = 'PENDING';
+  }
+
+  return { status: mappedStatus };
+}

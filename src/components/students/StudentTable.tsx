@@ -79,15 +79,15 @@ export function StudentTable({ students, onRowClick }: StudentTableProps) {
 
   if (students.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white py-16">
-        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
-          <Users className="h-8 w-8 text-gray-400" />
+      <div className="flex flex-col items-center justify-center rounded-[24px] border border-dashed border-slate-200 bg-white py-16 px-4">
+        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-50 border border-slate-100">
+          <Users className="h-6 w-6 text-slate-400" />
         </div>
-        <h3 className="text-lg font-medium text-gray-900">
-          No students yet
+        <h3 className="text-sm font-bold text-slate-900">
+          No students found
         </h3>
-        <p className="mt-1 text-sm text-gray-500">
-          Add your first student to get started
+        <p className="mt-1 text-xs text-slate-500 font-medium">
+          Try adjusting your search query or add a new student.
         </p>
       </div>
     );
@@ -96,18 +96,18 @@ export function StudentTable({ students, onRowClick }: StudentTableProps) {
   // ── Table ──────────────────────────────────
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white">
+    <div className="rounded-[24px] border border-slate-200/50 bg-white overflow-hidden shadow-sm">
       <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Full Name</TableHead>
-            <TableHead>Class</TableHead>
-            <TableHead>Admission No.</TableHead>
-            <TableHead>Virtual Account No.</TableHead>
-            <TableHead>Bank</TableHead>
-            <TableHead className="text-right">Outstanding</TableHead>
-            <TableHead className="text-right">Paid Amount</TableHead>
-            <TableHead>Status</TableHead>
+        <TableHeader className="bg-slate-50/70">
+          <TableRow className="hover:bg-transparent border-b border-slate-100">
+            <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider py-4 pl-6">Full Name</TableHead>
+            <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider py-4">Class</TableHead>
+            <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider py-4">Admission No.</TableHead>
+            <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider py-4">Virtual Account No.</TableHead>
+            <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider py-4">Bank</TableHead>
+            <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider py-4 text-right">Outstanding</TableHead>
+            <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider py-4 text-right">Paid Amount</TableHead>
+            <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider py-4 pr-6">Status</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -120,38 +120,38 @@ export function StudentTable({ students, onRowClick }: StudentTableProps) {
             return (
               <TableRow
                 key={student.id}
-                className="cursor-pointer hover:bg-gray-50 animate-fade-in"
+                className="cursor-pointer hover:bg-slate-50/80 transition-colors border-b border-slate-50 last:border-0"
                 onClick={() => onRowClick(student)}
               >
-                <TableCell className="font-semibold text-gray-900">
+                <TableCell className="font-bold text-slate-900 py-4 pl-6">
                   {student.fullName}
                 </TableCell>
-                <TableCell>{student.class}</TableCell>
-                <TableCell className="font-mono text-xs text-gray-600">
+                <TableCell className="font-semibold text-slate-600">{student.class}</TableCell>
+                <TableCell className="font-mono text-xs text-slate-500 font-semibold">
                   {student.admissionNumber}
                 </TableCell>
                 <TableCell
-                  className="font-mono text-xs text-gray-600"
+                  className="font-mono text-xs text-slate-500 font-semibold"
                   title={student.virtualAccountNumber}
                 >
                   {student.virtualAccountNumber}
                 </TableCell>
-                <TableCell className="text-xs text-gray-500">
+                <TableCell className="text-xs font-semibold text-slate-500">
                   {student.virtualAccountBankName}
                 </TableCell>
                 <TableCell
-                  className={`text-right font-semibold font-mono tabular-nums ${
+                  className={`text-right font-bold font-mono text-xs tabular-nums py-4 ${
                     student.outstandingBalance > 0
-                      ? 'text-red-600'
-                      : 'text-green-600'
+                      ? 'text-red-650'
+                      : 'text-green-700'
                   }`}
                 >
                   {kobotoNaira(student.outstandingBalance)}
                 </TableCell>
-                <TableCell className="text-right font-semibold font-mono tabular-nums text-green-700">
+                <TableCell className="text-right font-bold font-mono text-xs tabular-nums text-emerald-700 py-4">
                   {kobotoNaira(totalPaid)}
                 </TableCell>
-                <TableCell>{getStatusBadge(student, totalPaid)}</TableCell>
+                <TableCell className="py-4 pr-6">{getStatusBadge(student, totalPaid)}</TableCell>
               </TableRow>
             );
           })}

@@ -100,15 +100,11 @@ export default function StudentsPage() {
   // ── Error state ────────────────────────────
   if (error) {
     return (
-      <div className="p-6 lg:p-8">
-        <div className="rounded-lg border border-red-200 bg-red-50 p-6">
-          <div className="flex items-center gap-3 text-red-700">
-            <AlertCircle className="h-5 w-5" />
-            <p className="font-medium">
-              Failed to load students. Please refresh the page.
-            </p>
-          </div>
-          <p className="mt-2 text-sm text-red-600">{error}</p>
+      <div className="rounded-2xl border border-red-250/20 bg-red-50 p-6 flex items-center gap-3 text-red-750">
+        <AlertCircle className="h-5 w-5" />
+        <div>
+          <p className="font-bold text-sm">Failed to load students</p>
+          <p className="text-xs mt-0.5 text-red-600 font-semibold">{error}</p>
         </div>
       </div>
     );
@@ -116,44 +112,50 @@ export default function StudentsPage() {
 
   // ── Main content ───────────────────────────
   return (
-    <div className="p-6 lg:p-8 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Students</h1>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-950 tracking-tight">Students</h1>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">Manage and track student tuition balances and virtual accounts</p>
+        </div>
+        <Button 
+          onClick={() => setDialogOpen(true)}
+          className="rounded-xl bg-slate-950 text-white font-bold hover:bg-slate-900 shadow-md shadow-slate-950/10 h-10 px-4"
+        >
+          <Plus className="mr-2 h-4.5 w-4.5" />
           Add Student
         </Button>
       </div>
 
       {/* Filter / Search Bar */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         {/* Search */}
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+          <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Search by student name or admission number..."
+            placeholder="Search by name or admission number..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-md border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:outline-none"
+            className="w-full h-10 rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm font-semibold text-slate-950 placeholder:text-slate-400 focus:border-slate-950 focus:outline-none shadow-sm"
           />
         </div>
 
         {/* Class Filter Dropdown */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
             <SlidersHorizontal className="h-3.5 w-3.5" />
             <span>Class:</span>
           </div>
           <Select value={selectedClass} onValueChange={setSelectedClass}>
-            <SelectTrigger className="w-44 border-slate-200 bg-white text-slate-700">
+            <SelectTrigger className="w-44 h-10 border-slate-200 bg-white text-slate-750 rounded-xl shadow-sm font-semibold text-xs">
               <SelectValue placeholder="All Classes" />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Classes</SelectItem>
+            <SelectContent className="rounded-xl">
+              <SelectItem value="all" className="text-xs font-semibold">All Classes</SelectItem>
               {ALL_CLASSES.map((cls) => (
-                <SelectItem key={cls} value={cls}>
+                <SelectItem key={cls} value={cls} className="text-xs font-semibold">
                   {cls}
                 </SelectItem>
               ))}
@@ -163,32 +165,32 @@ export default function StudentsPage() {
       </div>
 
       {/* Stats bar */}
-      <div className="flex flex-wrap gap-4">
-        <div className="rounded-lg border border-gray-200 bg-white px-5 py-3">
-          <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200/50 bg-[#e2edf8]/30 px-5 py-4 flex flex-col justify-between shadow-sm">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
             Total Students
           </p>
-          <p className="mt-1 text-xl font-bold text-gray-900">
+          <p className="mt-2 text-2xl font-extrabold text-slate-950 tracking-tight">
             {filteredStudents.length}
           </p>
         </div>
-        <div className="rounded-lg border border-gray-200 bg-white px-5 py-3">
-          <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
+        <div className="rounded-2xl border border-slate-200/50 bg-[#e2edf8]/30 px-5 py-4 flex flex-col justify-between shadow-sm">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
             Total Outstanding
           </p>
           <p
-            className={`mt-1 text-xl font-bold ${
-              totalOutstanding > 0 ? 'text-red-600' : 'text-green-600'
+            className={`mt-2 text-2xl font-extrabold font-mono tracking-tight ${
+              totalOutstanding > 0 ? 'text-red-650' : 'text-green-700'
             }`}
           >
             {kobotoNaira(totalOutstanding)}
           </p>
         </div>
-        <div className="rounded-lg border border-gray-200 bg-white px-5 py-3">
-          <p className="text-xs font-medium uppercase tracking-wider text-gray-500">
+        <div className="rounded-2xl border border-slate-200/50 bg-[#e2edf8]/30 px-5 py-4 flex flex-col justify-between shadow-sm">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
             Total Paid
           </p>
-          <p className="mt-1 text-xl font-bold text-green-700 font-mono tabular-nums">
+          <p className="mt-2 text-2xl font-extrabold text-emerald-700 font-mono tracking-tight">
             {kobotoNaira(totalPaidAmount)}
           </p>
         </div>
@@ -199,13 +201,13 @@ export default function StudentsPage() {
 
       {/* Add student dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md rounded-2xl p-6">
           <DialogHeader>
-            <DialogTitle>Add New Student</DialogTitle>
+            <DialogTitle className="text-lg font-bold text-slate-950">Add New Student</DialogTitle>
           </DialogHeader>
           <AddStudentForm
             onSuccess={() => {
-              // Table auto-updates via onSnapshot — no manual refetch needed
+              setDialogOpen(false);
             }}
             onCancel={() => setDialogOpen(false)}
           />
