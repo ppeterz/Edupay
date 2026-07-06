@@ -35,7 +35,13 @@ if (getApps().length === 0) {
 const db = getFirestore();
 
 async function restoreData() {
-  console.log('🔄 Restoring original student records, invoices, and payments...');
+  console.log('🔄 Restoring original student records, invoices, and payments with correct mixed-case schoolId...');
+
+  const correctSchoolId = "IddNZ92uWbZjg5V97qkn5KCbNDn2";
+
+  // 1. Delete lowercase schoolId students if they exist so we don't have duplicates or orphan docs
+  // Wait, the doc IDs themselves are "iddnz92uwbzjg5v97qkn5kcbndn2-adm004" etc, which are fine.
+  // But we want to make sure schoolId attribute matches the authentic uid.
 
   // 1. Restore Students
   const students = [
@@ -47,10 +53,11 @@ async function restoreData() {
       virtualAccountNumber: "5528068891",
       virtualAccountReference: "iddnz92uwbzjg5v97qkn5kcbndn2-adm004",
       virtualAccountBankName: "Nomba Bank",
-      schoolId: "iddnz92uwbzjg5v97qkn5kcbndn2",
+      schoolId: correctSchoolId,
       outstandingBalance: 4490000,
       creditBalance: 0,
-      createdAt: "2026-07-05T04:00:00.000Z"
+      createdAt: "2026-07-05T04:00:00.000Z",
+      deletedAt: null
     },
     {
       id: "iddnz92uwbzjg5v97qkn5kcbndn2-adm006",
@@ -60,10 +67,11 @@ async function restoreData() {
       virtualAccountNumber: "1402774708",
       virtualAccountReference: "iddnz92uwbzjg5v97qkn5kcbndn2-adm006",
       virtualAccountBankName: "Nomba Bank",
-      schoolId: "iddnz92uwbzjg5v97qkn5kcbndn2",
+      schoolId: correctSchoolId,
       outstandingBalance: 4980000,
       creditBalance: 0,
-      createdAt: "2026-07-05T12:00:00.000Z"
+      createdAt: "2026-07-05T12:00:00.000Z",
+      deletedAt: null
     }
   ];
 
@@ -77,7 +85,7 @@ async function restoreData() {
     {
       id: "inv_tosin_1",
       studentId: "iddnz92uwbzjg5v97qkn5kcbndn2-adm004",
-      schoolId: "iddnz92uwbzjg5v97qkn5kcbndn2",
+      schoolId: correctSchoolId,
       term: "First Term",
       session: "2025/2026",
       totalAmountDue: 4500000,
@@ -100,7 +108,7 @@ async function restoreData() {
     {
       id: "inv_kay_1",
       studentId: "iddnz92uwbzjg5v97qkn5kcbndn2-adm006",
-      schoolId: "iddnz92uwbzjg5v97qkn5kcbndn2",
+      schoolId: correctSchoolId,
       term: "First Term",
       session: "2025/2026",
       totalAmountDue: 4500000,
@@ -131,7 +139,7 @@ async function restoreData() {
     {
       id: "inv_kay_2",
       studentId: "iddnz92uwbzjg5v97qkn5kcbndn2-adm006",
-      schoolId: "iddnz92uwbzjg5v97qkn5kcbndn2",
+      schoolId: correctSchoolId,
       term: "Second Term",
       session: "2025/2026",
       totalAmountDue: 5000000,
@@ -172,7 +180,7 @@ async function restoreData() {
       id: "txn_2073551404854390784",
       transactionId: "2073551404854390784",
       studentId: "iddnz92uwbzjg5v97qkn5kcbndn2-adm004",
-      schoolId: "iddnz92uwbzjg5v97qkn5kcbndn2",
+      schoolId: correctSchoolId,
       amount: 10000,
       invoiceIds: ["inv_tosin_1"],
       invoiceId: "inv_tosin_1",
@@ -230,7 +238,7 @@ async function restoreData() {
       id: "txn_API-VACT_TRA-A08CD-3b205b80-9011-4a83-ad13-4ad4a6ef4d78",
       transactionId: "API-VACT_TRA-A08CD-3b205b80-9011-4a83-ad13-4ad4a6ef4d78",
       studentId: "iddnz92uwbzjg5v97qkn5kcbndn2-adm006",
-      schoolId: "iddnz92uwbzjg5v97qkn5kcbndn2",
+      schoolId: correctSchoolId,
       amount: 20000,
       invoiceIds: ["inv_kay_2"],
       invoiceId: "inv_kay_2",
@@ -288,7 +296,7 @@ async function restoreData() {
       id: "txn_API-VACT_TRA-A08CD-6f4237fa-bdeb-4ab1-aa94-8f7765055534",
       transactionId: "API-VACT_TRA-A08CD-6f4237fa-bdeb-4ab1-aa94-8f7765055534",
       studentId: "iddnz92uwbzjg5v97qkn5kcbndn2-adm006",
-      schoolId: "iddnz92uwbzjg5v97qkn5kcbndn2",
+      schoolId: correctSchoolId,
       amount: 10000,
       invoiceIds: ["inv_kay_1"],
       invoiceId: "inv_kay_1",
@@ -357,6 +365,7 @@ async function restoreData() {
       aliasAccountReference: "iddnz92uwbzjg5v97qkn5kcbndn2-adm004",
       amount: 10000,
       status: "processed",
+      schoolId: correctSchoolId,
       createdAt: "2026-07-05T04:53:36.270Z",
       rawPayload: payments[0].rawPayload
     },
@@ -366,6 +375,7 @@ async function restoreData() {
       aliasAccountReference: "iddnz92uwbzjg5v97qkn5kcbndn2-adm006",
       amount: 20000,
       status: "processed",
+      schoolId: correctSchoolId,
       createdAt: "2026-07-05T12:39:22.896Z",
       rawPayload: payments[1].rawPayload
     },
@@ -375,6 +385,7 @@ async function restoreData() {
       aliasAccountReference: "iddnz92uwbzjg5v97qkn5kcbndn2-adm006",
       amount: 10000,
       status: "processed",
+      schoolId: correctSchoolId,
       createdAt: "2026-07-05T12:10:11.699Z",
       rawPayload: payments[2].rawPayload
     },
@@ -383,7 +394,7 @@ async function restoreData() {
       transactionId: "API-TRANSFER-AE431-976a85a2-8664-4542-be95-59b9dcdc0931",
       aliasAccountReference: "",
       amount: 5000,
-      schoolId: "",
+      schoolId: correctSchoolId,
       status: "error",
       createdAt: "2026-07-06T09:14:23.250Z",
       rawPayload: {

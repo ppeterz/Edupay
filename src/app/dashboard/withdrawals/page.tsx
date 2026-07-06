@@ -428,7 +428,7 @@ export default function WithdrawalsPage() {
                 )}
                 <p className="text-[10px] text-slate-400 mt-2 font-medium flex items-center gap-1">
                   <AlertTriangle className="h-3 w-3 text-amber-500" />
-                  Fee buffer of ₦{TRANSFER_FEE_BUFFER_NAIRA} applied to withdrwals
+                  A ₦{TRANSFER_FEE_BUFFER_NAIRA} withdrawal fee applies.
                 </p>
               </div>
             </CardContent>
@@ -601,10 +601,10 @@ export default function WithdrawalsPage() {
             <Card className="border border-slate-200/60 rounded-[28px] shadow-sm bg-white min-h-full">
               <CardHeader className="pb-3 border-b border-slate-50">
                 <CardTitle className="text-base font-black text-slate-850 tracking-tight">
-                  Initiate Outbound Withdrawal
+                  Withdraw Funds
                 </CardTitle>
                 <p className="text-xs text-slate-400 font-medium">
-                  Enter the amount you wish to withdraw to your linked bank account.
+                  Enter the amount you'd like to transfer to your linked bank account.
                 </p>
               </CardHeader>
               <CardContent className="p-6 space-y-6">
@@ -827,7 +827,7 @@ export default function WithdrawalsPage() {
               <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-850 text-xs font-semibold flex gap-2">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
                 <span>
-                  By clicking "Confirm", you authorize Nomba to withdraw the specified amount from the sub-account. Funds will arrive at the destination bank shortly.
+                  Please verify the recipient&apos;s bank details before confirming. Once your withdrawal request is submitted, it cannot be cancelled.
                 </span>
               </div>
 
