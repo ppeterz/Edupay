@@ -21,6 +21,7 @@ import {
   ArrowRightLeft,
   XCircle,
   ExternalLink,
+  ChevronDown,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -75,6 +76,8 @@ export default function WithdrawalsPage() {
 
   // Form states - Bank Setup
   const [selectedBankCode, setSelectedBankCode] = useState('');
+  const [bankSearch, setBankSearch] = useState('');
+  const [bankDropdownOpen, setBankDropdownOpen] = useState(false);
   const [accountNumber, setAccountNumber] = useState('');
   const [verifyingAccount, setVerifyingAccount] = useState(false);
   const [previewAccount, setPreviewAccount] = useState<{
@@ -163,10 +166,10 @@ export default function WithdrawalsPage() {
   };
 
   useEffect(() => {
-    if (user && bankAccount) {
+    if (user) {
       fetchLiveBalance();
     }
-  }, [user, bankAccount]);
+  }, [user]);
 
   // 3. Real-time Withdrawal History Listener
   useEffect(() => {
@@ -370,6 +373,12 @@ export default function WithdrawalsPage() {
     liveBalanceKobo !== null &&
     amountVal * 100 <= liveBalanceKobo - TRANSFER_FEE_BUFFER_NAIRA * 100;
 
+  // Selected bank and filtered search results
+  const selectedBank = banks.find((b) => b.code === selectedBankCode);
+  const filteredBanks = banks.filter((b) =>
+    b.name.toLowerCase().includes(bankSearch.toLowerCase())
+  );
+
   return (
     <div className="space-y-8">
       {/* Page Header */}
@@ -402,7 +411,7 @@ export default function WithdrawalsPage() {
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-450">Withdrawable Balance</span>
                 <button
                   onClick={fetchLiveBalance}
-                  disabled={loadingBalance || !bankAccount}
+                  disabled={loadingBalance}
                   className="p-1.5 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white transition-colors disabled:opacity-50"
                   title="Refresh Balance"
                 >
@@ -480,22 +489,18 @@ export default function WithdrawalsPage() {
                       <Label htmlFor="bank" className="text-xs font-bold text-slate-700">
                         Select Bank
                       </Label>
-                      <Select
-                        value={selectedBankCode}
-                        onValueChange={setSelectedBankCode}
+                      <button
+                        id="bank"
+                        type="button"
+                        onClick={() => setBankDropdownOpen(true)}
                         disabled={loadingBanks}
+                        className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-800 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-900/10 disabled:opacity-50 text-left"
                       >
-                        <SelectTrigger id="bank" className="h-11 rounded-xl border-slate-200 bg-white">
-                          <SelectValue placeholder={loadingBanks ? 'Loading banks...' : 'Choose bank'} />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-72">
-                          {banks.map((b) => (
-                            <SelectItem key={b.code} value={b.code}>
-                              {b.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        <span className={selectedBank ? "text-slate-800 font-semibold" : "text-slate-400"}>
+                          {loadingBanks ? 'Loading banks...' : selectedBank ? selectedBank.name : 'Choose bank'}
+                        </span>
+                        <ChevronDown className="h-4 w-4 text-slate-400" />
+                      </button>
                     </div>
 
                     <div className="space-y-1.5">
@@ -853,6 +858,70 @@ export default function WithdrawalsPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* SELECT DESTINATION BANK DIALOG MODAL (PORTAL LAYERED OVER EVERYTHING) */}
+      <Dialog open={bankDropdownOpen} onOpenChange={setBankDropdownOpen}>
+        <DialogContent className="rounded-2xl max-w-md p-6 max-h-[80vh] flex flex-col overflow-hidden bg-white">
+          <DialogHeader className="pb-3 border-b border-slate-100 shrink-0">
+            <DialogTitle className="text-base font-black text-slate-850 flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-slate-800" />
+              Select Destination Bank
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-400">
+              Search and choose the bank for your school payouts.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Search Input field */}
+          <div className="relative mt-4 mb-2 shrink-0">
+            <input
+              type="text"
+              placeholder="Search bank name..."
+              value={bankSearch}
+              onChange={(e) => setBankSearch(e.target.value)}
+              className="w-full h-11 pl-4 pr-10 rounded-xl border border-slate-200 text-sm font-semibold placeholder:text-slate-400 focus:outline-none focus:border-slate-350 focus:ring-2 focus:ring-slate-900/10 bg-white"
+              autoFocus
+            />
+            {bankSearch && (
+              <button
+                type="button"
+                onClick={() => setBankSearch('')}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-xs font-bold"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          {/* Scrollable list of banks */}
+          <div className="flex-1 overflow-y-auto space-y-1 pr-1 py-2">
+            {filteredBanks.length > 0 ? (
+              filteredBanks.map((b) => (
+                <button
+                  key={b.code}
+                  type="button"
+                  onClick={() => {
+                    setSelectedBankCode(b.code);
+                    setBankDropdownOpen(false);
+                    setBankSearch('');
+                  }}
+                  className={`flex w-full items-center px-4 py-3 text-sm font-semibold rounded-xl text-left transition-all ${
+                    selectedBankCode === b.code
+                      ? 'bg-slate-100 text-slate-950 font-black border-l-4 border-slate-900 pl-3'
+                      : 'text-slate-700 hover:bg-slate-50 border-l-4 border-transparent'
+                  }`}
+                >
+                  {b.name}
+                </button>
+              ))
+            ) : (
+              <div className="p-8 text-center text-sm text-slate-400 font-semibold">
+                No matching banks found
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

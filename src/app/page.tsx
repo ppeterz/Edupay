@@ -208,7 +208,7 @@ export default function Home() {
       </section>
 
       {/* ── 4. Features Grid ── */}
-      <section id="features" className="py-28 bg-[url('/wireframe_grid.png')] bg-cover bg-center relative overflow-hidden border-y border-border">
+      <section id="features" className="py-28 bg-[url('/Core_Capabilities_Everything.png')] bg-cover bg-center relative overflow-hidden border-y border-border">
         <div className="mx-auto max-w-7xl px-6 lg:px-8 relative z-10">
           <div className="text-center max-w-2xl mx-auto mb-16">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">

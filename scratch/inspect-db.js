@@ -32,39 +32,26 @@ admin.initializeApp({
 
 const db = getFirestore();
 
-async function clearTestData() {
-  console.log('🧹 Sweeping Firestore collections to remove all test data...');
+async function inspectDb() {
+  console.log('--- Students ---');
+  const students = await db.collection('students').get();
+  students.forEach(doc => {
+    console.log(`Student ID: ${doc.id}, Name: ${doc.data().fullName}, email: ${doc.data().email}`);
+  });
 
-  const collections = [
-    'students',
-    'invoices',
-    'payments',
-    'reconciliation_events',
-    'webhook_log',
-    'webhook_errors',
-    'withdrawals',
-    'bulk_invoice_runs'
-  ];
+  console.log('\n--- Webhook Logs ---');
+  const logs = await db.collection('webhook_log').get();
+  console.log(`Total webhook logs: ${logs.size}`);
+  logs.docs.slice(0, 10).forEach(doc => {
+    console.log(`Log ID: ${doc.id}, data:`, JSON.stringify(doc.data()));
+  });
 
-  for (const colName of collections) {
-    const snap = await db.collection(colName).get();
-    console.log(`Clearing ${snap.size} documents from '${colName}'...`);
-    
-    const batchSize = 100;
-    for (let i = 0; i < snap.docs.length; i += batchSize) {
-      const batch = db.batch();
-      const chunk = snap.docs.slice(i, i + batchSize);
-      chunk.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-      await batch.commit();
-    }
-    console.log(`- Finished clearing '${colName}'`);
-  }
-
-  console.log('\n=======================================');
-  console.log(`✨ DATABASE CLEANUP SUCCESSFUL!`);
-  console.log('=======================================');
+  console.log('\n--- Webhook Errors ---');
+  const errors = await db.collection('webhook_errors').get();
+  console.log(`Total webhook errors: ${errors.size}`);
+  errors.docs.slice(0, 10).forEach(doc => {
+    console.log(`Error ID: ${doc.id}, data:`, JSON.stringify(doc.data()));
+  });
 }
 
-clearTestData().catch(console.error);
+inspectDb().catch(console.error);

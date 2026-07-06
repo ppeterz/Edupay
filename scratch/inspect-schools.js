@@ -32,39 +32,12 @@ admin.initializeApp({
 
 const db = getFirestore();
 
-async function clearTestData() {
-  console.log('🧹 Sweeping Firestore collections to remove all test data...');
-
-  const collections = [
-    'students',
-    'invoices',
-    'payments',
-    'reconciliation_events',
-    'webhook_log',
-    'webhook_errors',
-    'withdrawals',
-    'bulk_invoice_runs'
-  ];
-
-  for (const colName of collections) {
-    const snap = await db.collection(colName).get();
-    console.log(`Clearing ${snap.size} documents from '${colName}'...`);
-    
-    const batchSize = 100;
-    for (let i = 0; i < snap.docs.length; i += batchSize) {
-      const batch = db.batch();
-      const chunk = snap.docs.slice(i, i + batchSize);
-      chunk.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-      await batch.commit();
-    }
-    console.log(`- Finished clearing '${colName}'`);
-  }
-
-  console.log('\n=======================================');
-  console.log(`✨ DATABASE CLEANUP SUCCESSFUL!`);
-  console.log('=======================================');
+async function inspectSchools() {
+  console.log('--- Schools ---');
+  const schoolsSnap = await db.collection('schools').get();
+  schoolsSnap.forEach(doc => {
+    console.log(`School ID: "${doc.id}", Name: "${doc.data().name}"`);
+  });
 }
 
-clearTestData().catch(console.error);
+inspectSchools().catch(console.error);
