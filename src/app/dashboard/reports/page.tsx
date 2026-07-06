@@ -155,12 +155,13 @@ export default function ReportsPage() {
 
   function handleExportCSV() {
     if (!data) return;
-    const csv = studentsToCSV(data.byStudent);
+    const csv = studentsToCSV(filteredStudents, { term, session });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `outstanding-${term.replace(/\s+/g, '-').toLowerCase()}-${session.replace('/', '-')}.csv`;
+    const classSlug = classFilter !== 'all' ? `-${classFilter.replace(/\s+/g, '-').toLowerCase()}` : '';
+    a.download = `outstanding-${term.replace(/\s+/g, '-').toLowerCase()}-${session.replace('/', '-')}${classSlug}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }

@@ -27,9 +27,11 @@ import {
   Plus,
   Copy,
   FileText,
+  Printer,
 } from 'lucide-react';
 import { kobotoNaira } from '@/lib/constants';
 import type { Student, Invoice } from '@/types';
+import { sortLineItemsByPriority } from '@/lib/invoice-helpers';
 import { StudentBalanceSummary } from '@/components/dashboard/StudentBalanceSummary';
 import { toast } from 'sonner';
 
@@ -80,6 +82,368 @@ export default function StudentDetailPage() {
     } finally {
       setDeleting(false);
     }
+  }
+
+  // ── Print Session Receipt (all invoices) ────
+
+  function handlePrintSessionReceipt() {
+    if (!student || invoices.length === 0) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Please allow popups to print receipts.');
+      return;
+    }
+
+    const sName = school?.name || 'EduPay School';
+
+    // Group invoices by session
+    const bySession = new Map<string, typeof invoices>();
+    for (const inv of invoices) {
+      const key = `${inv.session}`;
+      const list = bySession.get(key) ?? [];
+      list.push(inv);
+      bySession.set(key, list);
+    }
+
+    // Grand totals across all invoices
+    const grandDue = invoices.reduce((s, inv) => s + inv.totalAmountDue, 0);
+    const grandPaid = invoices.reduce((s, inv) => s + inv.totalAmountPaid, 0);
+    const grandOutstanding = invoices.reduce((s, inv) => s + inv.outstandingBalance, 0);
+
+    // Build invoice sections HTML
+    let invoiceSectionsHtml = '';
+    for (const [sessionKey, sessionInvoices] of bySession) {
+      for (const inv of sessionInvoices) {
+        const sorted = sortLineItemsByPriority(inv.lineItems);
+        const statusLabel = inv.status.toUpperCase();
+        const statusColor = inv.status === 'paid' || inv.status === 'overpaid' ? '#16a34a' : inv.status === 'partial' ? '#d97706' : '#dc2626';
+
+        invoiceSectionsHtml += `
+          <div class="invoice-section">
+            <div class="invoice-header">
+              <div>
+                <span class="term-label">${inv.term}</span>
+                <span class="session-label">${sessionKey}</span>
+              </div>
+              <span class="status-badge" style="background: ${statusColor}15; color: ${statusColor}; border: 1px solid ${statusColor}30;">${statusLabel}</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Description</th>
+                  <th class="text-right">Priority</th>
+                  <th class="text-right">Amount Due</th>
+                  <th class="text-right">Amount Paid</th>
+                  <th class="text-right">Outstanding</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${sorted.map(li => {
+                  const outstanding = li.amountDue - li.amountPaid;
+                  return `
+                    <tr>
+                      <td>${li.description}</td>
+                      <td class="text-right">P${li.priority}</td>
+                      <td class="text-right">${kobotoNaira(li.amountDue)}</td>
+                      <td class="text-right" style="color: #16a34a;">${kobotoNaira(li.amountPaid)}</td>
+                      <td class="text-right" style="font-weight: 600; ${outstanding > 0 ? 'color: #dc2626;' : 'color: #94a3b8;'}">
+                        ${outstanding > 0 ? kobotoNaira(outstanding) : '—'}
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+            <div class="invoice-subtotal">
+              <div class="subtotal-row">
+                <span>Term Due</span>
+                <span class="subtotal-value">${kobotoNaira(inv.totalAmountDue)}</span>
+              </div>
+              <div class="subtotal-row">
+                <span>Term Paid</span>
+                <span class="subtotal-value" style="color: #16a34a;">${kobotoNaira(inv.totalAmountPaid)}</span>
+              </div>
+              <div class="subtotal-row">
+                <span>Term Outstanding</span>
+                <span class="subtotal-value" style="color: ${inv.outstandingBalance > 0 ? '#dc2626' : '#16a34a'}; font-weight: 700;">
+                  ${inv.outstandingBalance > 0 ? kobotoNaira(inv.outstandingBalance) : 'SETTLED'}
+                </span>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Session Fee Receipt - ${student.fullName}</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      color: #1e293b;
+      margin: 40px;
+      line-height: 1.5;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 2px solid #0f172a;
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+    }
+    .school-name {
+      font-size: 24px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    .doc-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #475569;
+    }
+    .doc-subtitle {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 4px;
+    }
+    .details {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .details-section h3 {
+      font-size: 11px;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 6px;
+    }
+    .field {
+      font-size: 13px;
+      margin-bottom: 5px;
+    }
+    .field-label {
+      color: #64748b;
+      font-weight: 500;
+      display: inline-block;
+      min-width: 120px;
+    }
+    .field-value {
+      font-weight: 600;
+    }
+    .invoice-section {
+      margin-bottom: 30px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .invoice-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f8fafc;
+      padding: 10px 16px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .term-label {
+      font-size: 14px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .session-label {
+      font-size: 12px;
+      color: #64748b;
+      margin-left: 10px;
+    }
+    .status-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th {
+      background-color: #f1f5f9;
+      font-size: 11px;
+      font-weight: 700;
+      color: #475569;
+      text-transform: uppercase;
+      padding: 8px 14px;
+      text-align: left;
+      border-bottom: 1px solid #cbd5e1;
+    }
+    td {
+      padding: 10px 14px;
+      font-size: 13px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .text-right {
+      text-align: right;
+    }
+    .invoice-subtotal {
+      background: #f8fafc;
+      padding: 10px 16px;
+      border-top: 1px solid #e2e8f0;
+    }
+    .subtotal-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+    .subtotal-row:last-child {
+      margin-bottom: 0;
+    }
+    .subtotal-value {
+      font-weight: 600;
+    }
+    .grand-summary {
+      margin-top: 20px;
+      border: 2px solid #0f172a;
+      border-radius: 8px;
+      padding: 16px 20px;
+      background: #f8fafc;
+    }
+    .grand-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #64748b;
+      letter-spacing: 0.05em;
+      margin-bottom: 10px;
+    }
+    .grand-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      margin-bottom: 6px;
+    }
+    .grand-row:last-child {
+      margin-bottom: 0;
+    }
+    .grand-divider {
+      border-bottom: 1px solid #e2e8f0;
+      margin: 8px 0;
+    }
+    .grand-label {
+      font-weight: 600;
+      color: #334155;
+    }
+    .grand-value {
+      font-weight: 800;
+      font-size: 16px;
+    }
+    .footer {
+      margin-top: 50px;
+      font-size: 11px;
+      color: #94a3b8;
+      text-align: center;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 15px;
+    }
+    @media print {
+      body { margin: 20px; }
+      .invoice-section { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="school-name">${sName}</div>
+      <div class="doc-subtitle">Session Fee Statement</div>
+    </div>
+    <div style="text-align: right;">
+      <div class="doc-title">FEE RECEIPT</div>
+      <div class="doc-subtitle">Generated ${new Date().toLocaleDateString('en-NG', { month: 'long', day: 'numeric', year: 'numeric' })}</div>
+    </div>
+  </div>
+
+  <div class="details">
+    <div class="details-section">
+      <h3>Student Details</h3>
+      <div class="field">
+        <span class="field-label">Full Name:</span>
+        <span class="field-value">${student.fullName}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Class:</span>
+        <span class="field-value">${student.class}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Admission No:</span>
+        <span class="field-value">${student.admissionNumber || 'N/A'}</span>
+      </div>
+    </div>
+    <div class="details-section" style="text-align: right;">
+      <h3>Account Details</h3>
+      <div class="field">
+        <span class="field-value">${student.virtualAccountNumber}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Bank:</span>
+        <span class="field-value">${student.virtualAccountBankName || 'N/A'}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Total Invoices:</span>
+        <span class="field-value">${invoices.length}</span>
+      </div>
+    </div>
+  </div>
+
+  ${invoiceSectionsHtml}
+
+  <div class="grand-summary">
+    <div class="grand-title">Session Summary — All Terms</div>
+    <div class="grand-row">
+      <span class="grand-label">Total Amount Due</span>
+      <span class="grand-value" style="color: #0f172a;">${kobotoNaira(grandDue)}</span>
+    </div>
+    <div class="grand-row">
+      <span class="grand-label">Total Amount Paid</span>
+      <span class="grand-value" style="color: #16a34a;">${kobotoNaira(grandPaid)}</span>
+    </div>
+    <div class="grand-divider"></div>
+    <div class="grand-row">
+      <span class="grand-label">Total Outstanding Balance</span>
+      <span class="grand-value" style="color: ${grandOutstanding > 0 ? '#dc2626' : '#16a34a'};">
+        ${grandOutstanding > 0 ? kobotoNaira(grandOutstanding) : 'FULLY SETTLED'}
+      </span>
+    </div>
+  </div>
+
+  <div class="footer">
+    Generated by ${sName} Financial Reconciliation System &middot; Powered by EduPay
+  </div>
+
+  <script>
+    window.onload = function() {
+      setTimeout(function() {
+        window.print();
+      }, 500);
+    };
+  </script>
+</body>
+</html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
   }
 
   // ── Fetch student data ─────────────────────
@@ -205,6 +569,15 @@ export default function StudentDetailPage() {
             className="rounded-xl border-red-200 text-red-650 hover:bg-red-50 hover:text-red-700 h-10 px-4 font-semibold text-xs"
           >
             {deleting ? 'Deleting...' : 'Delete Student'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handlePrintSessionReceipt}
+            disabled={invoices.length === 0}
+            className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 h-10 px-4 font-semibold text-xs gap-2"
+          >
+            <Printer className="h-4 w-4" />
+            Print Session Receipt
           </Button>
           <Button 
             onClick={() => setDialogOpen(true)}

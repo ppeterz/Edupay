@@ -7,7 +7,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, doc, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { getFirebaseDb } from '@/lib/firebase';
 import { kobotoNaira } from '@/lib/constants';
 import { paymentStatusColor } from '@/lib/dashboard-helpers';
@@ -22,6 +22,42 @@ interface StudentBalanceSummaryProps {
 export function StudentBalanceSummary({ student }: StudentBalanceSummaryProps) {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Live balance state — overrides prop values once the listener fires
+  const [liveOutstanding, setLiveOutstanding] = useState<number>(student.outstandingBalance);
+  const [liveCredit, setLiveCredit] = useState<number>(student.creditBalance);
+
+  // Sync prop values when parent re-fetches a different student
+  useEffect(() => {
+    setLiveOutstanding(student.outstandingBalance);
+    setLiveCredit(student.creditBalance);
+  }, [student.id, student.outstandingBalance, student.creditBalance]);
+
+  // Real-time listener on the student document for instant balance updates
+  useEffect(() => {
+    const db = getFirebaseDb();
+    const studentRef = doc(db, 'students', student.id);
+
+    const unsub = onSnapshot(
+      studentRef,
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (typeof data.outstandingBalance === 'number') {
+            setLiveOutstanding(data.outstandingBalance);
+          }
+          if (typeof data.creditBalance === 'number') {
+            setLiveCredit(data.creditBalance);
+          }
+        }
+      },
+      (err) => {
+        console.error('[StudentBalanceSummary] Student doc listener error:', err);
+      }
+    );
+
+    return () => unsub();
+  }, [student.id]);
 
   useEffect(() => {
     const db = getFirebaseDb();
@@ -67,9 +103,9 @@ export function StudentBalanceSummary({ student }: StudentBalanceSummaryProps) {
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
               Outstanding Balance
             </p>
-            {student.outstandingBalance > 0 ? (
+            {liveOutstanding > 0 ? (
               <p className="mt-1.5 font-mono text-2xl font-extrabold text-red-650 tracking-tight">
-                {kobotoNaira(student.outstandingBalance)}
+                {kobotoNaira(liveOutstanding)}
               </p>
             ) : (
               <p className="mt-1.5 text-base font-bold text-emerald-600">
@@ -79,13 +115,13 @@ export function StudentBalanceSummary({ student }: StudentBalanceSummaryProps) {
           </div>
 
           {/* Credit Balance */}
-          {student.creditBalance > 0 && (
+          {liveCredit > 0 && (
             <div className="rounded-2xl border border-blue-100 bg-blue-50/50 px-4 py-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">
                 Available Wallet Credit
               </p>
               <p className="mt-1 font-mono text-xl font-extrabold text-blue-700 tracking-tight">
-                {kobotoNaira(student.creditBalance)}
+                {kobotoNaira(liveCredit)}
               </p>
               <p className="mt-1 text-[10px] text-blue-600 font-semibold">
                 Will be automatically applied to clear future school fee invoices.
