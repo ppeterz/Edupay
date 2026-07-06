@@ -290,6 +290,122 @@ export async function generateReceiptPdfBuffer(
           </View>
         </View>
 
+        {/* Student Balance Carry-Forward */}
+        {invoices.length > 0 && (
+          <View style={{
+            marginHorizontal: 30,
+            marginTop: 5,
+            marginBottom: 15,
+            borderWidth: 1,
+            borderColor: '#fde68a',
+            borderRadius: 4,
+            backgroundColor: '#fefce8',
+          }}>
+            <Text style={{
+              fontSize: 9,
+              fontFamily: 'Roboto',
+              fontWeight: 'bold',
+              color: '#713f12',
+              paddingHorizontal: 10,
+              paddingTop: 8,
+              paddingBottom: 3,
+              letterSpacing: 0.5,
+            }}>
+              STUDENT BALANCE SUMMARY
+            </Text>
+            <Text style={{
+              fontSize: 7.5,
+              color: '#92400e',
+              paddingHorizontal: 10,
+              paddingBottom: 6,
+            }}>
+              Balance context across all terms at time of this payment
+            </Text>
+
+            {/* Per-invoice balance rows */}
+            {invoices
+              .slice()
+              .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+              .map((inv, idx) => (
+                <View key={inv.id} style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                  borderTopWidth: idx === 0 ? 1 : 0,
+                  borderTopColor: '#fde68a',
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#fef3c7',
+                  backgroundColor: idx % 2 === 0 ? '#fefce8' : '#fef9c3',
+                }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', width: '55%' }}>
+                    <Text style={{ fontSize: 8, fontFamily: 'Roboto', fontWeight: 'bold', color: '#1e293b' }}>
+                      {inv.term}
+                    </Text>
+                    <Text style={{ fontSize: 7, color: '#92400e', marginLeft: 6 }}>
+                      {inv.session}
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: 8, color: '#64748b', width: '20%', textAlign: 'center' }}>
+                    Due: {kobotoNaira(inv.totalAmountDue)}
+                  </Text>
+                  <Text style={{
+                    fontSize: 8,
+                    fontFamily: 'Roboto',
+                    fontWeight: 'bold',
+                    width: '25%',
+                    textAlign: 'right',
+                    color: inv.outstandingBalance > 0 ? '#dc2626' : '#16a34a',
+                  }}>
+                    {inv.outstandingBalance > 0 ? kobotoNaira(inv.outstandingBalance) : 'SETTLED'}
+                  </Text>
+                </View>
+              ))}
+
+            {/* Overall balance row */}
+            <View style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              paddingHorizontal: 10,
+              paddingVertical: 5,
+              borderTopWidth: 1,
+              borderTopColor: '#fde68a',
+              backgroundColor: '#fef9c3',
+            }}>
+              <Text style={{ fontSize: 8.5, fontFamily: 'Roboto', fontWeight: 'bold', color: '#0f172a' }}>
+                Total Student Outstanding
+              </Text>
+              <Text style={{
+                fontSize: 8.5,
+                fontFamily: 'Roboto',
+                fontWeight: 'bold',
+                color: student.outstandingBalance > 0 ? '#dc2626' : '#16a34a',
+              }}>
+                {student.outstandingBalance > 0 ? kobotoNaira(student.outstandingBalance) : 'FULLY SETTLED'}
+              </Text>
+            </View>
+
+            {/* Credit balance note */}
+            {student.creditBalance > 0 && (
+              <View style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+                borderTopWidth: 1,
+                borderTopColor: '#fde68a',
+              }}>
+                <Text style={{ fontSize: 8, fontFamily: 'Roboto', fontWeight: 'bold', color: '#1d4ed8' }}>
+                  Available Credit Balance
+                </Text>
+                <Text style={{ fontSize: 8, fontFamily: 'Roboto', fontWeight: 'bold', color: '#1d4ed8' }}>
+                  {kobotoNaira(student.creditBalance)}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Footer */}
         <View style={styles.footerContainer}>
           <Text style={styles.footerLeft}>

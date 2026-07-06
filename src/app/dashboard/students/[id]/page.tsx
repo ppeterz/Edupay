@@ -111,6 +111,99 @@ export default function StudentDetailPage() {
     const grandPaid = invoices.reduce((s, inv) => s + inv.totalAmountPaid, 0);
     const grandOutstanding = invoices.reduce((s, inv) => s + inv.outstandingBalance, 0);
 
+    // Build carry-forward ledger — sort invoices chronologically
+    const chronologicalInvoices = [...invoices].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+
+    interface LedgerRow {
+      term: string;
+      session: string;
+      openingOutstanding: number;
+      newCharges: number;
+      paymentsReceived: number;
+      closingOutstanding: number;
+      creditApplied: number;
+    }
+
+    const ledgerRows: LedgerRow[] = [];
+    let runningOutstanding = 0;
+
+    for (const inv of chronologicalInvoices) {
+      const openingOutstanding = runningOutstanding;
+      const newCharges = inv.totalAmountDue;
+      const paymentsReceived = inv.totalAmountPaid;
+      // Credit applied is when payments exceed the current term's charges
+      // and the opening outstanding gets reduced
+      const totalOwed = openingOutstanding + newCharges;
+      const closingOutstanding = Math.max(0, totalOwed - paymentsReceived);
+      const creditApplied = Math.max(0, paymentsReceived - newCharges);
+
+      ledgerRows.push({
+        term: inv.term,
+        session: inv.session,
+        openingOutstanding,
+        newCharges,
+        paymentsReceived,
+        closingOutstanding: inv.outstandingBalance,
+        creditApplied: creditApplied > 0 && openingOutstanding > 0
+          ? Math.min(creditApplied, openingOutstanding)
+          : 0,
+      });
+
+      runningOutstanding = inv.outstandingBalance;
+    }
+
+    // Build carry-forward ledger HTML
+    const ledgerHtml = `
+      <div class="ledger-section">
+        <div class="ledger-title">Balance Carry-Forward Ledger</div>
+        <p class="ledger-subtitle">Shows how outstanding balances and credits are carried between terms</p>
+        <table class="ledger-table">
+          <thead>
+            <tr>
+              <th>Term / Session</th>
+              <th class="text-right">Opening Balance</th>
+              <th class="text-right">New Charges</th>
+              <th class="text-right">Payments</th>
+              <th class="text-right">Carried Forward</th>
+              <th class="text-right">Closing Outstanding</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${ledgerRows.map((row, idx) => {
+              const isLast = idx === ledgerRows.length - 1;
+              return `
+                <tr style="${isLast ? 'font-weight: 600;' : ''}">
+                  <td>
+                    <span style="font-weight: 600;">${row.term}</span>
+                    <span style="color: #64748b; font-size: 11px; margin-left: 6px;">${row.session}</span>
+                  </td>
+                  <td class="text-right" style="color: ${row.openingOutstanding > 0 ? '#dc2626' : '#94a3b8'};">
+                    ${row.openingOutstanding > 0 ? kobotoNaira(row.openingOutstanding) : '—'}
+                  </td>
+                  <td class="text-right">${kobotoNaira(row.newCharges)}</td>
+                  <td class="text-right" style="color: #16a34a;">${kobotoNaira(row.paymentsReceived)}</td>
+                  <td class="text-right" style="color: ${row.creditApplied > 0 ? '#2563eb' : '#94a3b8'}; font-size: 11px;">
+                    ${row.creditApplied > 0 ? `−${kobotoNaira(row.creditApplied)} applied` : '—'}
+                  </td>
+                  <td class="text-right" style="font-weight: 700; color: ${row.closingOutstanding > 0 ? '#dc2626' : '#16a34a'};">
+                    ${row.closingOutstanding > 0 ? kobotoNaira(row.closingOutstanding) : 'SETTLED'}
+                  </td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+        ${student.creditBalance > 0 ? `
+          <div class="credit-note">
+            <span style="font-weight: 700; color: #1d4ed8;">Available Credit Balance: ${kobotoNaira(student.creditBalance)}</span>
+            <span style="color: #64748b; font-size: 11px; margin-left: 8px;">Will auto-apply to future invoices</span>
+          </div>
+        ` : ''}
+      </div>
+    `;
+
     // Build invoice sections HTML
     let invoiceSectionsHtml = '';
     for (const [sessionKey, sessionInvoices] of bySession) {
@@ -347,6 +440,51 @@ export default function StudentDetailPage() {
       font-weight: 800;
       font-size: 16px;
     }
+    .ledger-section {
+      margin-bottom: 30px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fefce8;
+    }
+    .ledger-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #0f172a;
+      padding: 12px 16px 0;
+    }
+    .ledger-subtitle {
+      font-size: 11px;
+      color: #64748b;
+      padding: 2px 16px 10px;
+      margin: 0;
+    }
+    .ledger-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .ledger-table th {
+      background: #fef9c3;
+      font-size: 10px;
+      font-weight: 700;
+      color: #713f12;
+      text-transform: uppercase;
+      padding: 8px 12px;
+      text-align: left;
+      border-bottom: 1px solid #fde68a;
+    }
+    .ledger-table td {
+      padding: 9px 12px;
+      font-size: 12px;
+      border-bottom: 1px solid #fef3c7;
+    }
+    .credit-note {
+      padding: 10px 16px;
+      border-top: 1px solid #fde68a;
+      background: #fef9c3;
+      font-size: 12px;
+    }
     .footer {
       margin-top: 50px;
       font-size: 11px;
@@ -358,6 +496,7 @@ export default function StudentDetailPage() {
     @media print {
       body { margin: 20px; }
       .invoice-section { break-inside: avoid; }
+      .ledger-section { break-inside: avoid; }
     }
   </style>
 </head>
@@ -406,6 +545,8 @@ export default function StudentDetailPage() {
   </div>
 
   ${invoiceSectionsHtml}
+
+  ${ledgerHtml}
 
   <div class="grand-summary">
     <div class="grand-title">Session Summary — All Terms</div>
@@ -685,6 +826,7 @@ export default function StudentDetailPage() {
                   invoice={inv}
                   student={student}
                   schoolName={school?.name || 'School'}
+                  allInvoices={invoices}
                   onEdit={setEditingInvoice}
                 />
               ))}
