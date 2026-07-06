@@ -25,7 +25,7 @@ import { Button } from '@/components/ui/button';
 import { Pencil, Printer } from 'lucide-react';
 import { kobotoNaira } from '@/lib/constants';
 import { sortLineItemsByPriority } from '@/lib/invoice-helpers';
-import type { Invoice, Student } from '@/types';
+import type { Invoice, Student, Payment } from '@/types';
 
 // ── Props ────────────────────────────────────
 
@@ -34,6 +34,7 @@ interface InvoiceCardProps {
   student?: Student;
   schoolName?: string;
   allInvoices?: Invoice[];
+  payments?: Payment[];
   onEdit?: (invoice: Invoice) => void;
 }
 
@@ -80,7 +81,7 @@ function LineItemStatusBadge({
 
 // ── Component ────────────────────────────────
 
-export function InvoiceCard({ invoice, student, schoolName, allInvoices, onEdit }: InvoiceCardProps) {
+export function InvoiceCard({ invoice, student, schoolName, allInvoices, payments, onEdit }: InvoiceCardProps) {
   const { label, className } = STATUS_STYLES[invoice.status];
   const sortedItems = sortLineItemsByPriority(invoice.lineItems);
   const isEditable = invoice.status === 'unpaid' && invoice.totalAmountPaid === 0;
@@ -328,49 +329,103 @@ export function InvoiceCard({ invoice, student, schoolName, allInvoices, onEdit 
 
   ${(() => {
     // Build balance carry-forward context if allInvoices is available
-    if (!allInvoices || allInvoices.length <= 1) return '';
+    if (!allInvoices || allInvoices.length === 0) return '';
 
     const sorted = [...allInvoices].sort(
       (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
 
-    // Find invoices before this one to compute carried-forward balance
     const currentIdx = sorted.findIndex(inv => inv.id === invoice.id);
     if (currentIdx < 0) return '';
 
+    const termStart = new Date(invoice.createdAt).getTime();
+    const termEnd = currentIdx < sorted.length - 1
+      ? new Date(sorted[currentIdx + 1].createdAt).getTime()
+      : Infinity;
+
+    // Calculate opening outstanding at term start: charges minus payments before termStart
     const previousInvoices = sorted.slice(0, currentIdx);
-    const carriedForward = previousInvoices.reduce((s, inv) => s + inv.outstandingBalance, 0);
+    
+    let openingOutstanding = 0;
+    for (const prev of previousInvoices) {
+      let allocatedBefore = 0;
+      if (payments) {
+        for (const payment of payments) {
+          const payTime = new Date(payment.processedAt ?? payment.createdAt).getTime();
+          if (payTime < termStart) {
+            for (const alloc of payment.allocations) {
+              if (alloc.invoiceId === prev.id) {
+                allocatedBefore += alloc.amountAllocated;
+              }
+            }
+          }
+        }
+      }
+      openingOutstanding += Math.max(0, prev.totalAmountDue - allocatedBefore);
+    }
+
+    // Calculate how much past outstanding was cleared during this term
+    let pastOutstandingCleared = 0;
+    if (payments) {
+      for (const payment of payments) {
+        const payTime = new Date(payment.processedAt ?? payment.createdAt).getTime();
+        if (payTime >= termStart && payTime < termEnd) {
+          for (const alloc of payment.allocations) {
+            const isPrior = previousInvoices.some((prev) => prev.id === alloc.invoiceId);
+            if (isPrior) {
+              pastOutstandingCleared += alloc.amountAllocated;
+            }
+          }
+        }
+      }
+    }
+
+    const termCharges = invoice.totalAmountDue;
+    const termPayments = invoice.totalAmountPaid;
+    const closingOutstanding = Math.max(0, openingOutstanding - pastOutstandingCleared + termCharges - termPayments);
+
     const totalOutstandingAll = sorted.reduce((s, inv) => s + inv.outstandingBalance, 0);
     const studentCredit = student?.creditBalance ?? 0;
 
     return `
       <div style="margin-top: 30px; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: #fefce8; break-inside: avoid;">
-        <div style="padding: 12px 16px 8px; font-size: 13px; font-weight: 700; color: #0f172a;">Account Balance Context</div>
-        <div style="padding: 0 16px 4px; font-size: 10px; color: #64748b; margin: 0;">How this invoice relates to the student's overall balance</div>
+        <div style="padding: 12px 16px 8px; font-size: 13px; font-weight: 700; color: #0f172a;">Account Balance Carry-Forward Context</div>
+        <div style="padding: 0 16px 4px; font-size: 10px; color: #64748b; margin: 0;">Ledger flow during the active period of ${invoice.term}</div>
         <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
           <tbody>
-            ${carriedForward > 0 ? `
-              <tr>
-                <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; color: #64748b;">Outstanding Carried Forward (${previousInvoices.length} previous invoice${previousInvoices.length > 1 ? 's' : ''})</td>
-                <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; text-align: right; font-weight: 600; color: #dc2626;">${kobotoNaira(carriedForward)}</td>
-              </tr>
-            ` : `
-              <tr>
-                <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; color: #64748b;">Outstanding Carried Forward</td>
-                <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; text-align: right; color: #16a34a; font-weight: 600;">None</td>
-              </tr>
-            `}
             <tr>
-              <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; color: #64748b;">This Term Charges (${invoice.term})</td>
-              <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; text-align: right; font-weight: 600;">${kobotoNaira(invoice.totalAmountDue)}</td>
+              <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; color: #64748b;">Opening Outstanding Balance (Carried Forward)</td>
+              <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; text-align: right; font-weight: 600; color: ${openingOutstanding > 0 ? '#dc2626' : '#16a34a'};">
+                ${openingOutstanding > 0 ? kobotoNaira(openingOutstanding) : 'None'}
+              </td>
+            </tr>
+            ${pastOutstandingCleared > 0 ? `
+              <tr>
+                <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; color: #1d4ed8; font-weight: 500;">Past Outstanding Cleared during this Term</td>
+                <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; text-align: right; font-weight: 700; color: #1d4ed8;">
+                  −${kobotoNaira(pastOutstandingCleared)}
+                </td>
+              </tr>
+            ` : ''}
+            <tr>
+              <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; color: #64748b;">This Term New Charges (${invoice.term})</td>
+              <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; text-align: right; font-weight: 600;">${kobotoNaira(termCharges)}</td>
             </tr>
             <tr>
-              <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; color: #64748b;">This Term Payments</td>
-              <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; text-align: right; font-weight: 600; color: #16a34a;">${kobotoNaira(invoice.totalAmountPaid)}</td>
+              <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; color: #64748b;">This Term Payments Received</td>
+              <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; text-align: right; font-weight: 600; color: #16a34a;">${kobotoNaira(termPayments)}</td>
             </tr>
-            <tr style="border-top: 2px solid #fde68a;">
-              <td style="padding: 10px 16px; font-weight: 700; color: #0f172a;">Total Student Outstanding (All Terms)</td>
-              <td style="padding: 10px 16px; text-align: right; font-weight: 800; font-size: 14px; color: ${totalOutstandingAll > 0 ? '#dc2626' : '#16a34a'};">${totalOutstandingAll > 0 ? kobotoNaira(totalOutstandingAll) : 'FULLY SETTLED'}</td>
+            <tr>
+              <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; color: #64748b;">Closing Outstanding Balance (Carried Forward)</td>
+              <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; text-align: right; font-weight: 700; color: ${closingOutstanding > 0 ? '#dc2626' : '#16a34a'};">
+                ${closingOutstanding > 0 ? kobotoNaira(closingOutstanding) : 'SETTLED'}
+              </td>
+            </tr>
+            <tr style="border-top: 2px solid #fde68a; background-color: #fef9c3;">
+              <td style="padding: 10px 16px; font-weight: 700; color: #0f172a;">Current Student Outstanding (All Terms Combined)</td>
+              <td style="padding: 10px 16px; text-align: right; font-weight: 800; font-size: 14px; color: ${totalOutstandingAll > 0 ? '#dc2626' : '#16a34a'};">
+                ${totalOutstandingAll > 0 ? kobotoNaira(totalOutstandingAll) : 'FULLY SETTLED'}
+              </td>
             </tr>
             ${studentCredit > 0 ? `
               <tr>

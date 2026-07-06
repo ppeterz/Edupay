@@ -211,34 +211,48 @@ export async function generateReceiptPdfBuffer(
           </View>
           
           {/* Table Rows grouped by Invoice/Term */}
-          {allocationsByInvoice.map((group, groupIndex) => (
-            <View key={group.invoice.id} style={{ marginTop: groupIndex > 0 ? 8 : 0 }}>
-              {/* Term Header Row */}
-              <View style={styles.termHeaderRow}>
-                <Text style={styles.termHeaderText}>
-                  {`${group.invoice.term.toUpperCase()} PAYMENT`}
-                </Text>
-              </View>
+          {(() => {
+            const chronologicalInvoices = [...invoices].sort(
+              (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+            );
+            const latestInvoiceId = chronologicalInvoices[chronologicalInvoices.length - 1]?.id;
 
-              {/* Table Rows for this Group */}
-              {group.allocations.map((a, index) => {
-                let priorityLabel = 'P1';
-                const matchedItem = group.invoice.lineItems.find(
-                  (item) => item.id === a.lineItemId || item.description.toLowerCase().trim() === a.description.toLowerCase().trim()
-                );
-                if (matchedItem) {
-                  priorityLabel = `P${matchedItem.priority}`;
-                }
-                return (
-                  <View key={index} style={[styles.row, index % 2 === 0 ? styles.evenRow : {}]}>
-                    <Text style={styles.rowLeft}>{a.description}</Text>
-                    <Text style={styles.rowCenter}>{priorityLabel}</Text>
-                    <Text style={styles.rowRight}>{kobotoNaira(a.amountAllocated)}</Text>
+            return allocationsByInvoice.map((group, groupIndex) => {
+              const isPastClearance = group.invoice.id !== latestInvoiceId;
+              const headerLabel = isPastClearance
+                ? `${group.invoice.term.toUpperCase()} PAYMENT (PAST OUTSTANDING CLEARANCE)`
+                : `${group.invoice.term.toUpperCase()} PAYMENT`;
+
+              return (
+                <View key={group.invoice.id} style={{ marginTop: groupIndex > 0 ? 8 : 0 }}>
+                  {/* Term Header Row */}
+                  <View style={styles.termHeaderRow}>
+                    <Text style={styles.termHeaderText}>
+                      {headerLabel}
+                    </Text>
                   </View>
-                );
-              })}
-            </View>
-          ))}
+
+                  {/* Table Rows for this Group */}
+                  {group.allocations.map((a, index) => {
+                    let priorityLabel = 'P1';
+                    const matchedItem = group.invoice.lineItems.find(
+                      (item) => item.id === a.lineItemId || item.description.toLowerCase().trim() === a.description.toLowerCase().trim()
+                    );
+                    if (matchedItem) {
+                      priorityLabel = `P${matchedItem.priority}`;
+                    }
+                    return (
+                      <View key={index} style={[styles.row, index % 2 === 0 ? styles.evenRow : {}]}>
+                        <Text style={styles.rowLeft}>{a.description}</Text>
+                        <Text style={styles.rowCenter}>{priorityLabel}</Text>
+                        <Text style={styles.rowRight}>{kobotoNaira(a.amountAllocated)}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              );
+            });
+          })()}
 
           {unmatchedAllocations.length > 0 && (
             <View style={{ marginTop: allocationsByInvoice.length > 0 ? 8 : 0 }}>
@@ -326,41 +340,58 @@ export async function generateReceiptPdfBuffer(
             {invoices
               .slice()
               .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-              .map((inv, idx) => (
-                <View key={inv.id} style={{
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  paddingHorizontal: 10,
-                  paddingVertical: 4,
-                  borderTopWidth: idx === 0 ? 1 : 0,
-                  borderTopColor: '#fde68a',
-                  borderBottomWidth: 1,
-                  borderBottomColor: '#fef3c7',
-                  backgroundColor: idx % 2 === 0 ? '#fefce8' : '#fef9c3',
-                }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', width: '55%' }}>
-                    <Text style={{ fontSize: 8, fontFamily: 'Roboto', fontWeight: 'bold', color: '#1e293b' }}>
-                      {inv.term}
-                    </Text>
-                    <Text style={{ fontSize: 7, color: '#92400e', marginLeft: 6 }}>
-                      {inv.session}
-                    </Text>
-                  </View>
-                  <Text style={{ fontSize: 8, color: '#64748b', width: '20%', textAlign: 'center' }}>
-                    Due: {kobotoNaira(inv.totalAmountDue)}
-                  </Text>
-                  <Text style={{
-                    fontSize: 8,
-                    fontFamily: 'Roboto',
-                    fontWeight: 'bold',
-                    width: '25%',
-                    textAlign: 'right',
-                    color: inv.outstandingBalance > 0 ? '#dc2626' : '#16a34a',
+              .map((inv, idx) => {
+                // Find allocations from this payment to this invoice
+                const matchingAllocations = payment.allocations.filter((a) => a.invoiceId === inv.id);
+                const clearedByThisPayment = matchingAllocations.reduce((sum, a) => sum + a.amountAllocated, 0);
+
+                return (
+                  <View key={inv.id} style={{
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    paddingHorizontal: 10,
+                    paddingVertical: 5,
+                    borderTopWidth: idx === 0 ? 1 : 0,
+                    borderTopColor: '#fde68a',
+                    borderBottomWidth: 1,
+                    borderBottomColor: '#fef3c7',
+                    backgroundColor: idx % 2 === 0 ? '#fefce8' : '#fef9c3',
                   }}>
-                    {inv.outstandingBalance > 0 ? kobotoNaira(inv.outstandingBalance) : 'SETTLED'}
-                  </Text>
-                </View>
-              ))}
+                    <View style={{ width: '45%' }}>
+                      <Text style={{ fontSize: 8, fontFamily: 'Roboto', fontWeight: 'bold', color: '#1e293b' }}>
+                        {inv.term}
+                      </Text>
+                      <Text style={{ fontSize: 6.5, color: '#92400e', marginTop: 1 }}>
+                        {inv.session}
+                      </Text>
+                    </View>
+                    <View style={{ width: '25%', textAlign: 'right' }}>
+                      <Text style={{ fontSize: 7.5, color: '#64748b' }}>
+                        Due: {kobotoNaira(inv.totalAmountDue)}
+                      </Text>
+                      {clearedByThisPayment > 0 && (
+                        <Text style={{ fontSize: 7, color: '#1d4ed8', fontWeight: 'bold', marginTop: 1 }}>
+                          Cleared: −{kobotoNaira(clearedByThisPayment)}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={{ width: '30%', textAlign: 'right' }}>
+                      <Text style={{ fontSize: 7.5, color: '#64748b' }}>
+                        Outstanding:
+                      </Text>
+                      <Text style={{
+                        fontSize: 8,
+                        fontFamily: 'Roboto',
+                        fontWeight: 'bold',
+                        color: inv.outstandingBalance > 0 ? '#dc2626' : '#16a34a',
+                        marginTop: 1,
+                      }}>
+                        {inv.outstandingBalance > 0 ? kobotoNaira(inv.outstandingBalance) : 'SETTLED'}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
 
             {/* Overall balance row */}
             <View style={{
@@ -373,7 +404,7 @@ export async function generateReceiptPdfBuffer(
               backgroundColor: '#fef9c3',
             }}>
               <Text style={{ fontSize: 8.5, fontFamily: 'Roboto', fontWeight: 'bold', color: '#0f172a' }}>
-                Total Student Outstanding
+                Total Student Outstanding (All Terms)
               </Text>
               <Text style={{
                 fontSize: 8.5,

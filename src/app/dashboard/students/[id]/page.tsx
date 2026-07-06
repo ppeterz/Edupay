@@ -30,9 +30,11 @@ import {
   Printer,
 } from 'lucide-react';
 import { kobotoNaira } from '@/lib/constants';
-import type { Student, Invoice } from '@/types';
+import type { Student, Invoice, Payment } from '@/types';
 import { sortLineItemsByPriority } from '@/lib/invoice-helpers';
 import { StudentBalanceSummary } from '@/components/dashboard/StudentBalanceSummary';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { getFirebaseDb } from '@/lib/firebase';
 import { toast } from 'sonner';
 
 
@@ -51,6 +53,27 @@ export default function StudentDetailPage() {
   const [deleting, setDeleting] = useState(false);
 
   const { invoices, loading: invoicesLoading, error: invoicesError } = useInvoices(studentId);
+  const [payments, setPayments] = useState<Payment[]>([]);
+
+  useEffect(() => {
+    if (!user || !studentId) return;
+    const db = getFirebaseDb();
+    const q = query(
+      collection(db, 'payments'),
+      where('schoolId', '==', user.uid),
+      where('studentId', '==', studentId)
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setPayments(snap.docs.map((d) => d.data() as Payment));
+      },
+      (err) => {
+        console.error('[StudentDetailPage] Payments fetch error:', err);
+      }
+    );
+    return () => unsub();
+  }, [user, studentId]);
 
   async function handleDeleteStudent() {
     const confirmed = window.confirm(
@@ -121,23 +144,49 @@ export default function StudentDetailPage() {
       session: string;
       openingOutstanding: number;
       newCharges: number;
-      paymentsReceived: number;
+      paymentsReceived: number;       // applied to current term charges
+      pastOutstandingCleared: number; // applied to prior outstanding balance
       closingOutstanding: number;
-      creditApplied: number;
     }
 
     const ledgerRows: LedgerRow[] = [];
     let runningOutstanding = 0;
 
-    for (const inv of chronologicalInvoices) {
+    for (let k = 0; k < chronologicalInvoices.length; k++) {
+      const inv = chronologicalInvoices[k];
+      const termStart = new Date(inv.createdAt).getTime();
+      const termEnd = k < chronologicalInvoices.length - 1
+        ? new Date(chronologicalInvoices[k + 1].createdAt).getTime()
+        : Infinity;
+
       const openingOutstanding = runningOutstanding;
       const newCharges = inv.totalAmountDue;
-      const paymentsReceived = inv.totalAmountPaid;
-      // Credit applied is when payments exceed the current term's charges
-      // and the opening outstanding gets reduced
-      const totalOwed = openingOutstanding + newCharges;
-      const closingOutstanding = Math.max(0, totalOwed - paymentsReceived);
-      const creditApplied = Math.max(0, paymentsReceived - newCharges);
+
+      let paymentsReceived = 0;
+      let pastOutstandingCleared = 0;
+
+      for (const payment of payments) {
+        const payTime = new Date(payment.processedAt ?? payment.createdAt).getTime();
+        // Payment fell inside this term's duration
+        if (payTime >= termStart && payTime < termEnd) {
+          for (const alloc of payment.allocations) {
+            if (alloc.invoiceId === inv.id) {
+              paymentsReceived += alloc.amountAllocated;
+            } else {
+              // Check if allocation went to a prior invoice in chronological list
+              const isPriorInvoice = chronologicalInvoices
+                .slice(0, k)
+                .some((pInv) => pInv.id === alloc.invoiceId);
+              if (isPriorInvoice) {
+                pastOutstandingCleared += alloc.amountAllocated;
+              }
+            }
+          }
+        }
+      }
+
+      // Closing Outstanding = Opening Outstanding - Past Outstanding Cleared + New Charges - Payments Received
+      const closingOutstanding = Math.max(0, openingOutstanding - pastOutstandingCleared + newCharges - paymentsReceived);
 
       ledgerRows.push({
         term: inv.term,
@@ -145,28 +194,26 @@ export default function StudentDetailPage() {
         openingOutstanding,
         newCharges,
         paymentsReceived,
-        closingOutstanding: inv.outstandingBalance,
-        creditApplied: creditApplied > 0 && openingOutstanding > 0
-          ? Math.min(creditApplied, openingOutstanding)
-          : 0,
+        pastOutstandingCleared,
+        closingOutstanding,
       });
 
-      runningOutstanding = inv.outstandingBalance;
+      runningOutstanding = closingOutstanding;
     }
 
     // Build carry-forward ledger HTML
     const ledgerHtml = `
       <div class="ledger-section">
         <div class="ledger-title">Balance Carry-Forward Ledger</div>
-        <p class="ledger-subtitle">Shows how outstanding balances and credits are carried between terms</p>
+        <p class="ledger-subtitle">Chronological ledger showing how past outstanding and credit balances were cleared from term to term</p>
         <table class="ledger-table">
           <thead>
             <tr>
               <th>Term / Session</th>
-              <th class="text-right">Opening Balance</th>
+              <th class="text-right">Opening Outstanding</th>
               <th class="text-right">New Charges</th>
-              <th class="text-right">Payments</th>
-              <th class="text-right">Carried Forward</th>
+              <th class="text-right">Payments Received</th>
+              <th class="text-right">Past Outstanding Cleared</th>
               <th class="text-right">Closing Outstanding</th>
             </tr>
           </thead>
@@ -184,8 +231,8 @@ export default function StudentDetailPage() {
                   </td>
                   <td class="text-right">${kobotoNaira(row.newCharges)}</td>
                   <td class="text-right" style="color: #16a34a;">${kobotoNaira(row.paymentsReceived)}</td>
-                  <td class="text-right" style="color: ${row.creditApplied > 0 ? '#2563eb' : '#94a3b8'}; font-size: 11px;">
-                    ${row.creditApplied > 0 ? `−${kobotoNaira(row.creditApplied)} applied` : '—'}
+                  <td class="text-right" style="color: ${row.pastOutstandingCleared > 0 ? '#2563eb' : '#94a3b8'}; font-weight: ${row.pastOutstandingCleared > 0 ? '600' : 'normal'};">
+                    ${row.pastOutstandingCleared > 0 ? `−${kobotoNaira(row.pastOutstandingCleared)}` : '—'}
                   </td>
                   <td class="text-right" style="font-weight: 700; color: ${row.closingOutstanding > 0 ? '#dc2626' : '#16a34a'};">
                     ${row.closingOutstanding > 0 ? kobotoNaira(row.closingOutstanding) : 'SETTLED'}
@@ -197,8 +244,8 @@ export default function StudentDetailPage() {
         </table>
         ${student.creditBalance > 0 ? `
           <div class="credit-note">
-            <span style="font-weight: 700; color: #1d4ed8;">Available Credit Balance: ${kobotoNaira(student.creditBalance)}</span>
-            <span style="color: #64748b; font-size: 11px; margin-left: 8px;">Will auto-apply to future invoices</span>
+            <span style="font-weight: 700; color: #1d4ed8;">Available Wallet Credit: ${kobotoNaira(student.creditBalance)}</span>
+            <span style="color: #64748b; font-size: 11px; margin-left: 8px;">Will automatically clear future invoices</span>
           </div>
         ` : ''}
       </div>
@@ -827,6 +874,7 @@ export default function StudentDetailPage() {
                   student={student}
                   schoolName={school?.name || 'School'}
                   allInvoices={invoices}
+                  payments={payments}
                   onEdit={setEditingInvoice}
                 />
               ))}
