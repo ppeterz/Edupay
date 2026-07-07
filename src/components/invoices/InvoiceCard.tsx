@@ -418,22 +418,39 @@ export function InvoiceCard({ invoice, student, schoolName, allInvoices, payment
                 ${openingOutstanding > 0 ? kobotoNaira(openingOutstanding) : 'None'}
               </td>
             </tr>
-            ${pastOutstandingCleared > 0 ? `
-              <tr>
-                <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; color: #1d4ed8; font-weight: 500;">Past Outstanding Cleared during this Term</td>
-                <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; text-align: right; font-weight: 700; color: #1d4ed8;">
-                  −${kobotoNaira(pastOutstandingCleared)}
-                </td>
-              </tr>
-            ` : ''}
             <tr>
               <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; color: #64748b;">This Term New Charges (${invoice.term})</td>
               <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; text-align: right; font-weight: 600;">${kobotoNaira(termCharges)}</td>
             </tr>
-            <tr>
-              <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; color: #64748b;">This Term Payments Received</td>
-              <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; text-align: right; font-weight: 600; color: #16a34a;">${kobotoNaira(termPayments)}</td>
-            </tr>
+            ${(termPayments + pastOutstandingCleared) > 0 ? `
+              <tr>
+                <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; color: #0f172a; font-weight: 600;">Total Payments Received during this Term</td>
+                <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; text-align: right; font-weight: 700; color: #0f172a;">
+                  ${kobotoNaira(termPayments + pastOutstandingCleared)}
+                </td>
+              </tr>
+              ${pastOutstandingCleared > 0 ? `
+                <tr>
+                  <td style="padding: 6px 16px 6px 28px; border-bottom: 1px solid #fef3c7; color: #64748b;">↳ Applied to Past Outstanding</td>
+                  <td style="padding: 6px 16px 6px 16px; border-bottom: 1px solid #fef3c7; text-align: right; color: #2563eb; font-weight: 600;">
+                    −${kobotoNaira(pastOutstandingCleared)}
+                  </td>
+                </tr>
+              ` : ''}
+              ${termPayments > 0 ? `
+                <tr>
+                  <td style="padding: 6px 16px 6px 28px; border-bottom: 1px solid #fef3c7; color: #64748b;">↳ Applied to This Term Charges (${invoice.term})</td>
+                  <td style="padding: 6px 16px 6px 16px; border-bottom: 1px solid #fef3c7; text-align: right; color: #16a34a; font-weight: 600;">
+                    −${kobotoNaira(termPayments)}
+                  </td>
+                </tr>
+              ` : ''}
+            ` : `
+              <tr>
+                <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; color: #64748b;">Total Payments Received during this Term</td>
+                <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; text-align: right; color: #94a3b8;">None</td>
+              </tr>
+            `}
             <tr>
               <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; color: #64748b;">Closing Outstanding Balance (Carried Forward)</td>
               <td style="padding: 8px 16px; border-bottom: 1px solid #fef3c7; text-align: right; font-weight: 700; color: ${closingOutstanding > 0 ? '#dc2626' : '#16a34a'};">

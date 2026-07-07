@@ -234,14 +234,16 @@ export default function StudentDetailPage() {
               <th>Term / Session</th>
               <th class="text-right">Opening Outstanding</th>
               <th class="text-right">New Charges</th>
-              <th class="text-right">Payments Received</th>
-              <th class="text-right">Past Outstanding Cleared</th>
+              <th class="text-right">Total Received</th>
+              <th class="text-right">Applied to New Charges</th>
+              <th class="text-right">Applied to Past Outstanding</th>
               <th class="text-right">Closing Outstanding</th>
             </tr>
           </thead>
           <tbody>
             ${ledgerRows.map((row, idx) => {
               const isLast = idx === ledgerRows.length - 1;
+              const totalReceived = row.paymentsReceived + row.pastOutstandingCleared;
               return `
                 <tr style="${isLast ? 'font-weight: 600;' : ''}">
                   <td>
@@ -252,7 +254,12 @@ export default function StudentDetailPage() {
                     ${row.openingOutstanding > 0 ? kobotoNaira(row.openingOutstanding) : '—'}
                   </td>
                   <td class="text-right">${kobotoNaira(row.newCharges)}</td>
-                  <td class="text-right" style="color: #16a34a;">${kobotoNaira(row.paymentsReceived)}</td>
+                  <td class="text-right" style="font-weight: 600; color: #0f172a;">
+                    ${totalReceived > 0 ? kobotoNaira(totalReceived) : '—'}
+                  </td>
+                  <td class="text-right" style="color: #16a34a;">
+                    ${row.paymentsReceived > 0 ? kobotoNaira(row.paymentsReceived) : '—'}
+                  </td>
                   <td class="text-right" style="color: ${row.pastOutstandingCleared > 0 ? '#2563eb' : '#94a3b8'}; font-weight: ${row.pastOutstandingCleared > 0 ? '600' : 'normal'};">
                     ${row.pastOutstandingCleared > 0 ? `−${kobotoNaira(row.pastOutstandingCleared)}` : '—'}
                   </td>
