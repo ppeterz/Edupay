@@ -24,6 +24,19 @@ import type {
 export async function processWebhookAsync(
   payload: NombaWebhookPayload
 ): Promise<void> {
+  // ── Guard: only process incoming virtual-account payments ──
+  // Nomba sends payout_success / payout_failed / payout_refund / payment_failed /
+  // payment_reversal to the SAME webhook URL. Those payloads have no
+  // aliasAccountReference and are NOT incoming student payments. Skip them
+  // immediately to avoid false webhook_errors and unmatched_payment alerts.
+  const eventType = payload.event_type;
+  if (eventType !== 'payment_success') {
+    console.log(
+      `[webhook] Ignoring non-collection event_type="${eventType}" (requestId=${payload.requestId})`
+    );
+    return;
+  }
+
   const adminDb = getAdminDb();
   const txn = payload.data.transaction;
   const transactionId = txn.transactionId;

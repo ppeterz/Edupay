@@ -264,7 +264,7 @@ export default function DashboardLayout({
                       className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-semibold text-red-650 hover:bg-red-50 transition-colors"
                     >
                       <LogOut className="h-3.5 w-3.5" />
-                      Sign out session
+                      Sign out
                     </button>
                   </div>
                 </>

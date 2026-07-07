@@ -80,8 +80,8 @@ export function RecentWebhookLog() {
       {/* Header */}
       <div className="flex items-center justify-between border-b border-slate-850 px-5 py-4 bg-slate-950 select-none">
         <div>
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Processing Logs</h3>
-          <p className="text-[10px] text-slate-450 mt-0.5">Webhook Pipeline Feed</p>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Payment Processing</h3>
+          <p className="text-[10px] text-slate-450 mt-0.5">Live payment feed</p>
         </div>
         <div className="flex items-center gap-1.5 rounded-full bg-emerald-950/50 border border-emerald-900 px-2 py-0.5 text-[9px] font-bold text-emerald-400">
           <span className="relative flex h-1.5 w-1.5">
@@ -105,7 +105,7 @@ export function RecentWebhookLog() {
           </div>
         ) : logs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-14 text-center">
-            <p className="text-[10px] text-slate-500 font-semibold">Waiting for Nomba webhook transactions...</p>
+            <p className="text-[10px] text-slate-500 font-semibold">No payments received yet</p>
           </div>
         ) : (
           <div className="space-y-4.5" aria-live="polite">
@@ -127,7 +127,7 @@ export function RecentWebhookLog() {
                       {log.transactionId ? log.transactionId.slice(0, 12) : 'Unknown ID'}...
                     </p>
                     <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
-                      <span>Ref:</span>
+                      <span>Acct:</span>
                       <span className="font-mono text-slate-350">
                         {log.aliasAccountReference ? log.aliasAccountReference.slice(0, 10) : 'N/A'}...
                       </span>

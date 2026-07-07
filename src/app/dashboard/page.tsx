@@ -237,12 +237,12 @@ export default function DashboardPage() {
         <div className="lg:col-span-2 rounded-[28px] border border-slate-200/50 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">Revenue Stream</h3>
-              <p className="text-xs text-slate-400 font-medium mt-0.5">Last 7 days of collection webhook intake</p>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">Money Collected</h3>
+              <p className="text-xs text-slate-400 font-medium mt-0.5">Payments received in the last 7 days</p>
             </div>
             <div className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-bold text-emerald-700">
               <TrendingUp className="h-3.5 w-3.5" />
-              <span>Real-time webhook events</span>
+              <span>Live updates</span>
             </div>
           </div>
           
@@ -303,16 +303,16 @@ export default function DashboardPage() {
           
           <div>
             <div className="flex items-center justify-between pb-4 border-b border-slate-850">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Collection target</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Collection Progress</span>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-slate-350">
-                Installment Stage 1
+                Current Term
               </span>
             </div>
 
             <div className="mt-6 space-y-4">
               <div className="flex items-baseline justify-between">
                 <h4 className="text-3xl font-extrabold font-mono">{collectionRate.toFixed(1)}%</h4>
-                <p className="text-xs text-slate-400 font-semibold">Of total bills reconciled</p>
+                <p className="text-xs text-slate-400 font-semibold">of fees collected</p>
               </div>
               
               {/* Thick slider progress capsule */}
@@ -325,7 +325,7 @@ export default function DashboardPage() {
 
               <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
                 <Clock className="h-4 w-4 text-slate-500" />
-                <span>Estimated processing: 1-2 school weeks</span>
+                <span>Estimated collection time: 1–2 school weeks</span>
               </div>
             </div>
           </div>
@@ -335,7 +335,7 @@ export default function DashboardPage() {
               href="/dashboard/invoices/review"
               className="flex w-full items-center justify-between rounded-2xl bg-white text-slate-950 px-4 py-3 font-bold text-xs shadow hover:bg-slate-100 active:scale-[0.98] transition-all"
             >
-              <span>Review skipped invoices</span>
+              <span>Review pending invoices</span>
               <ChevronRight className="h-4 w-4" />
             </Link>
           </div>
@@ -348,14 +348,14 @@ export default function DashboardPage() {
         <div className="lg:col-span-2 flex flex-col rounded-[28px] border border-slate-200/50 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between pb-4 border-b border-slate-100">
             <div>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">Activity Logs</h3>
-              <p className="text-xs text-slate-450 font-medium mt-0.5">Real-time ledger events feed</p>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">Recent Payments</h3>
+              <p className="text-xs text-slate-450 font-medium mt-0.5">Latest payment activity</p>
             </div>
             <Link 
               href="/dashboard/payments"
               className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-0.5"
             >
-              <span>View all transactions</span>
+              <span>View all payments</span>
               <ChevronRight className="h-3.5 w-3.5" />
             </Link>
           </div>
@@ -366,8 +366,8 @@ export default function DashboardPage() {
                 <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-full bg-slate-50 border border-slate-100">
                   <Clock className="h-5 w-5 text-slate-455" />
                 </div>
-                <p className="text-xs font-bold text-slate-500">No payment activity logged yet</p>
-                <p className="text-[10px] text-slate-400 mt-1">Activity logs will populate as incoming virtual accounts trigger webhooks.</p>
+                <p className="text-xs font-bold text-slate-500">No payments received yet</p>
+                <p className="text-[10px] text-slate-400 mt-1">Payments will appear here once parents start paying.</p>
               </div>
             ) : (
               <div className="space-y-3.5" aria-live="polite">
@@ -421,7 +421,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Right: developer log diagnostics panel */}
+        {/* Right: payment processing feed */}
         <div className="lg:col-span-1">
           <RecentWebhookLog />
         </div>

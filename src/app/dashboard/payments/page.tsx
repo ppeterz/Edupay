@@ -154,9 +154,9 @@ export default function PaymentsPage() {
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex flex-col gap-1 pb-4 border-b border-slate-100">
-        <h1 className="text-2xl font-extrabold text-slate-950 tracking-tight">Payments Ledger</h1>
+        <h1 className="text-2xl font-extrabold text-slate-950 tracking-tight">Payments</h1>
         <p className="text-xs text-slate-500 font-medium mt-0.5">
-          Review incoming virtual account triggers, allocations, and ledger transitions in real-time.
+          Track all payments received and how they were applied to student fees.
         </p>
       </div>
 
@@ -167,7 +167,7 @@ export default function PaymentsPage() {
           <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Search by student, transaction ID, reference..."
+            placeholder="Search by student name or payment reference..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:border-slate-300 focus:ring-1 focus:ring-slate-300/30 focus:outline-none transition-all shadow-sm"
@@ -212,7 +212,7 @@ export default function PaymentsPage() {
         ) : filteredPayments.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-4 text-center select-none">
             <Info className="h-9 w-9 text-slate-300 mb-2" />
-            <h3 className="text-xs font-bold text-slate-905">No transaction logs</h3>
+            <h3 className="text-xs font-bold text-slate-905">No payments found</h3>
             <p className="text-[10px] text-slate-450 font-semibold mt-0.5 max-w-[280px]">
               No payments match your query. Incoming bank transfers will appear automatically.
             </p>
@@ -223,7 +223,7 @@ export default function PaymentsPage() {
               <TableHeader className="bg-slate-50/50 border-b border-slate-100">
                 <TableRow>
                   <TableHead className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pl-6">Student</TableHead>
-                  <TableHead className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Transaction ID</TableHead>
+                  <TableHead className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Payment ID</TableHead>
                   <TableHead className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</TableHead>
                   <TableHead className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Date Received</TableHead>
                   <TableHead className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-right pr-6">Amount</TableHead>
@@ -309,9 +309,9 @@ export default function PaymentsPage() {
       <Dialog open={!!selectedPayment} onOpenChange={(open) => !open && setSelectedPayment(null)}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg rounded-2xl p-6 border-slate-100 bg-white">
           <DialogHeader className="pb-3 border-b border-slate-100">
-            <DialogTitle className="text-slate-950 text-lg font-bold">Reconciliation details</DialogTitle>
+            <DialogTitle className="text-slate-950 text-lg font-bold">Payment Details</DialogTitle>
             <DialogDescription className="text-slate-400 text-xs font-semibold">
-              Real-time audit trails and fee component breakdowns.
+              See how this payment was applied to the student&apos;s fees.
             </DialogDescription>
           </DialogHeader>
 
@@ -321,7 +321,7 @@ export default function PaymentsPage() {
               <div className="grid grid-cols-2 gap-4 rounded-2xl bg-[#e2edf8]/25 p-4 border border-blue-100/30">
                 <div>
                   <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
-                    Transaction ID
+                    Payment ID
                   </p>
                   <p className="font-mono text-xs font-bold text-slate-900 mt-0.5 truncate max-w-[180px]">
                     {selectedPayment.transactionId}
@@ -329,7 +329,7 @@ export default function PaymentsPage() {
                 </div>
                 <div>
                   <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
-                    Session Reference
+                    Payment Reference
                   </p>
                   <p className="font-mono text-xs font-bold text-slate-900 mt-0.5 truncate max-w-[180px]">
                     {selectedPayment.transactionReference || 'N/A'}
@@ -348,14 +348,14 @@ export default function PaymentsPage() {
                   {/* Event type and Summary Balances */}
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Event Action</p>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Payment Type</p>
                       <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide mt-1.5 ${eventTypeColor(reconEvent.eventType).bg} ${eventTypeColor(reconEvent.eventType).text}`}>
                         {eventTypeColor(reconEvent.eventType).label}
                       </span>
                     </div>
                     {reconEvent.creditGenerated > 0 && (
                       <div className="text-right">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Wallet Credit Generated</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Overpayment Credit</p>
                         <p className="text-sm font-extrabold text-blue-700 font-mono mt-1 tabular-nums">
                           + {kobotoNaira(reconEvent.creditGenerated)}
                         </p>
@@ -375,7 +375,7 @@ export default function PaymentsPage() {
                     </div>
                     <div>
                       <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                        Allocated
+                        Applied to Fees
                       </p>
                       <p className="font-mono text-sm font-extrabold text-slate-950 mt-0.5 tabular-nums">
                         {kobotoNaira(reconEvent.amountAllocated)}
@@ -383,7 +383,7 @@ export default function PaymentsPage() {
                     </div>
                     <div>
                       <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                        Outstanding Gap
+                        Balance Change
                       </p>
                       <div className="flex items-center gap-1 mt-0.5 font-mono text-[11px] font-bold text-slate-950">
                         <p className="text-slate-400 line-through">
@@ -401,9 +401,9 @@ export default function PaymentsPage() {
                 <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/45 p-4">
                   <TrendingDown className="h-5 w-5 text-amber-600 flex-shrink-0" />
                   <div>
-                    <h4 className="text-xs font-bold text-amber-850">No ledger adjustment event</h4>
+                    <h4 className="text-xs font-bold text-amber-850">No fee adjustment recorded</h4>
                     <p className="text-[11px] text-amber-700 leading-relaxed font-semibold mt-0.5">
-                      This transaction was processed without direct outstanding reductions (e.g., wallet deposits or skipped invoices).
+                      This payment was received but not applied to any outstanding fees (e.g., stored as credit for future use).
                     </p>
                   </div>
                 </div>
@@ -412,7 +412,7 @@ export default function PaymentsPage() {
               {/* Allocations breakdown */}
               <div className="space-y-2">
                 <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Fee Allocations details
+                  Payment Breakdown
                 </h4>
                 {selectedPayment.allocations && selectedPayment.allocations.length > 0 ? (
                   <div className="rounded-2xl border border-slate-100 overflow-hidden">
@@ -438,7 +438,7 @@ export default function PaymentsPage() {
                     </Table>
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-400 italic">No allocations ledger rows present.</p>
+                  <p className="text-xs text-slate-400 italic">No fee breakdown available.</p>
                 )}
               </div>
 

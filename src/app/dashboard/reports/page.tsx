@@ -215,7 +215,7 @@ export default function ReportsPage() {
             Financial Reports
           </h1>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
-            School collection analytics &amp; outstanding balances
+            Fee collection summary &amp; unpaid balances
           </p>
         </div>
         <Button

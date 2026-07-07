@@ -95,7 +95,7 @@ export function StudentBalanceSummary({ student }: StudentBalanceSummaryProps) {
       {/* Balances Card */}
       <Card className="border-slate-200/50 shadow-sm rounded-[24px]">
         <CardHeader className="pb-3 border-b border-slate-100/70">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Ledger Balances</h3>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Account Balance</h3>
         </CardHeader>
         <CardContent className="pt-5 space-y-4">
           {/* Outstanding Balance */}
@@ -118,13 +118,13 @@ export function StudentBalanceSummary({ student }: StudentBalanceSummaryProps) {
           {liveCredit > 0 && (
             <div className="rounded-2xl border border-blue-100 bg-blue-50/50 px-4 py-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">
-                Available Wallet Credit
+                Credit Balance (Overpayment)
               </p>
               <p className="mt-1 font-mono text-xl font-extrabold text-blue-700 tracking-tight">
                 {kobotoNaira(liveCredit)}
               </p>
               <p className="mt-1 text-[10px] text-blue-600 font-semibold">
-                Will be automatically applied to clear future school fee invoices.
+                Will be automatically used to pay future school fees.
               </p>
             </div>
           )}
@@ -158,7 +158,7 @@ export function StudentBalanceSummary({ student }: StudentBalanceSummaryProps) {
                 No payments logged yet
               </p>
               <p className="text-[10px] text-slate-400 mt-1 max-w-[200px] leading-relaxed">
-                Incoming virtual account payments will display here in real-time.
+                Incoming payments will show up here as they come in.
               </p>
             </div>
           ) : (

@@ -817,7 +817,7 @@ export default function StudentDetailPage() {
         <div className="absolute top-0 right-0 w-44 h-44 rounded-full bg-blue-500/5 blur-3xl pointer-events-none" />
         <div className="flex justify-between items-start">
           <div>
-            <p className="text-[9px] uppercase font-bold text-slate-500 tracking-wider">Edupay Virtual Account</p>
+            <p className="text-[9px] uppercase font-bold text-slate-500 tracking-wider">Payment Account</p>
             <h3 className="text-sm font-bold text-slate-350 mt-1">{student.virtualAccountBankName ?? 'Nomba Partner Bank'}</h3>
           </div>
           <span className="text-lg font-extrabold tracking-tight text-white opacity-80">₦</span>
@@ -845,7 +845,7 @@ export default function StudentDetailPage() {
           </div>
           
           <div>
-            <p className="text-[8px] uppercase font-bold text-slate-500 tracking-wider">Account Reference</p>
+            <p className="text-[8px] uppercase font-bold text-slate-500 tracking-wider">Account ID</p>
             <p className="mt-1.5 font-mono text-xs text-slate-350 truncate">
               {student.virtualAccountReference}
             </p>
@@ -853,7 +853,7 @@ export default function StudentDetailPage() {
 
           <div className="text-left sm:text-right">
             <span className="inline-flex items-center rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 text-[9px] font-bold text-emerald-400 uppercase tracking-wide">
-              Active Virtual Account
+              Active
             </span>
           </div>
         </div>

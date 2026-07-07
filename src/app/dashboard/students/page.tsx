@@ -117,7 +117,7 @@ export default function StudentsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-extrabold text-slate-950 tracking-tight">Students</h1>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">Manage and track student tuition balances and virtual accounts</p>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">Manage students and track their fee payments</p>
         </div>
         <Button 
           onClick={() => setDialogOpen(true)}
