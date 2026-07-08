@@ -33,6 +33,43 @@ EduPay is a production-hardened transaction engine and automated fee reconciliat
 - **On-Demand Receipt Fallback**: Receipt PDFs are uploaded to Cloudinary, but if Cloudinary is unavailable, they regenerate on-demand at a public, stateless endpoint (`/api/receipts/[id]`).
 - **Nomba API Sub-account Discovery**: We discovered and resolved a undocumented Nomba API subtlety during development: virtual accounts must be created using the sub-account-scoped endpoint (`POST /accounts/virtual/{subAccountId}`) rather than the parent endpoint, otherwise payment notifications will not fire. This resolved integration issues faced by multiple teams.
 
+- ## For Reviewers — Demo Access
+
+**Live app:** https://edupay-five.vercel.app
+
+**Login credentials:**
+- Email: `peterdamilola45@gmail.com`
+- Password: `pelumi12`
+
+No signup needed — log in directly with the credentials above to view the
+full admin dashboard, students, invoices, payments, and reports.
+
+⚠️ **Important — this is a LIVE production account with real data, not a
+sandbox.** This account has genuine Nomba virtual accounts and has processed
+real bank transfers as proof of concept. Please do **not** submit the
+"Request Withdrawal" form on the Withdrawals page — this would trigger a
+real bank transfer out of our live Nomba sub-account. Everything else is
+completely safe to click through and explore.
+
+### What to look at
+
+- **Dashboard** (`/dashboard`) — real-time stats and activity feed
+- **Students** (`/dashboard/students`) — click into "kay alaba" to see a
+  student with real, live-verified payment history
+- **Payments** (`/dashboard/payments`) — click any row to see the full
+  allocation breakdown (which fee line items were funded and how much)
+- **Reports** (`/dashboard/reports`) — collection rate and class-level
+  breakdown
+- **Invoicing** (`/dashboard/invoices`) — bulk class invoicing tool
+
+### API keys / test accounts
+
+No additional API keys are needed to review the deployed app — the demo
+login above gives full access to everything. If you want to inspect the
+codebase's integration with Nomba's API directly, our full documentation
+(architecture, real API discoveries, and testing performed) is in
+`EduPay-Project-Documentation.md` at the repository root.
+
 ## Setup
 
 1. **Clone the repository** and install dependencies:
