@@ -29,23 +29,11 @@ export async function GET(request: NextRequest) {
     step = 'firestore-init';
     const adminDb = getAdminDb();
 
-    // 2. Validate query params
-    step = 'params';
-    const { searchParams } = new URL(request.url);
-    const term = searchParams.get('term');
-    const session = searchParams.get('session');
-
-    if (!term || !session) {
-      return badRequest('Both "term" and "session" query parameters are required');
-    }
-
-    // 3. Fetch invoices for this school + term + session
+    // 3. Fetch all invoices for the school
     step = 'fetch-invoices';
     const invoicesSnap = await adminDb
       .collection('invoices')
       .where('schoolId', '==', schoolId)
-      .where('term', '==', term)
-      .where('session', '==', session)
       .get();
 
     const invoices = invoicesSnap.docs.map((d) => d.data() as Invoice);
@@ -59,25 +47,10 @@ export async function GET(request: NextRequest) {
 
     const students = studentsSnap.docs.map((d) => d.data() as Student);
 
-    // 5. Build report data
-    step = 'build-report';
-    const byClass = buildClassReport(invoices, students);
-    const byStudent = buildStudentReport(invoices, students);
-
-    const totalDue = byClass.reduce((sum, row) => sum + row.totalDue, 0);
-    const totalCollected = byClass.reduce(
-      (sum, row) => sum + row.totalCollected,
-      0
-    );
-    const collectionRate = calculateCollectionRate(totalDue, totalCollected);
-
-    // 6. Return response
+    // 5. Return lists to the client
     return Response.json({
-      totalDue,
-      totalCollected,
-      collectionRate,
-      byClass,
-      byStudent,
+      invoices,
+      students,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

@@ -9,12 +9,18 @@
 // - Bar chart by class (recharts)
 // - Outstanding students table with class filter + CSV export
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { kobotoNaira, ALL_CLASSES } from '@/lib/constants';
 import { studentsToCSV } from '@/lib/export';
+import {
+  buildClassReport,
+  buildStudentReport,
+  calculateCollectionRate,
+} from '@/lib/report-helpers';
 import type { ClassReportRow, StudentReportRow } from '@/lib/report-helpers';
+import type { Invoice, Student } from '@/types';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -106,16 +112,31 @@ function chartTooltipFormatter(value: unknown) {
 export default function ReportsPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const [term, setTerm] = useState<string>(TERMS[0]);
-  const [session, setSession] = useState<string>(DEFAULT_SESSION);
-  const [data, setData] = useState<ReportData | null>(null);
+
+  const [rawInvoices, setRawInvoices] = useState<Invoice[]>([]);
+  const [rawStudents, setRawStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Filter Mode: 'single' | 'range'
+  const [filterMode, setFilterMode] = useState<'single' | 'range'>('single');
+
+  // Single Session Mode Filters
+  const [session, setSession] = useState<string>(DEFAULT_SESSION);
+  const [term, setTerm] = useState<string>('All Terms');
+
+  // Range Mode Filters
+  const [startSession, setStartSession] = useState<string>(DEFAULT_SESSION);
+  const [startTerm, setStartTerm] = useState<string>('First Term');
+  const [endSession, setEndSession] = useState<string>(DEFAULT_SESSION);
+  const [endTerm, setEndTerm] = useState<string>('Third Term');
+
+  // Outstanding Students Class Filter
   const [classFilter, setClassFilter] = useState<string>('all');
 
-  // ── Fetch report data ──────────────────────
+  // ── Fetch all data once ──────────────────────
 
-  const fetchReport = useCallback(async () => {
+  const fetchReportData = useCallback(async () => {
     if (!user) return;
 
     setLoading(true);
@@ -123,8 +144,7 @@ export default function ReportsPage() {
 
     try {
       const token = await user.getIdToken();
-      const params = new URLSearchParams({ term, session });
-      const res = await fetch(`/api/reports/summary?${params}`, {
+      const res = await fetch('/api/reports/summary', {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -133,60 +153,158 @@ export default function ReportsPage() {
         throw new Error(body.error || `HTTP ${res.status}`);
       }
 
-      const json: ReportData = await res.json();
-      setData(json);
+      const json = await res.json();
+      setRawInvoices(json.invoices || []);
+      setRawStudents(json.students || []);
     } catch (err) {
       console.error('[ReportsPage] Fetch error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load report');
+      setError(err instanceof Error ? err.message : 'Failed to load report data');
     } finally {
       setLoading(false);
     }
-  }, [user, term, session]);
+  }, [user]);
 
   useEffect(() => {
-    // Only fetch once auth is resolved and user is available
     if (!authLoading && user) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      fetchReport();
+      fetchReportData();
     }
-  }, [authLoading, user, fetchReport]);
+  }, [authLoading, user, fetchReportData]);
+
+  // ── Dynamically extract unique sessions from invoices ──
+
+  const sessionsList = useMemo(() => {
+    const set = new Set<string>();
+    rawInvoices.forEach((inv) => {
+      if (inv.session) set.add(inv.session);
+    });
+    if (set.size === 0) {
+      set.add('2024/2025');
+      set.add('2025/2026');
+      set.add('2026/2027');
+    }
+    return Array.from(set).sort().reverse();
+  }, [rawInvoices]);
+
+  // Sync state values with available sessions once loaded
+  useEffect(() => {
+    if (sessionsList.length > 0) {
+      if (!sessionsList.includes(session)) {
+        setSession(sessionsList[0]);
+      }
+      if (!sessionsList.includes(startSession)) {
+        setStartSession(sessionsList[sessionsList.length - 1] || sessionsList[0]);
+      }
+      if (!sessionsList.includes(endSession)) {
+        setEndSession(sessionsList[0]);
+      }
+    }
+  }, [sessionsList, session, startSession, endSession]);
+
+  // ── Client-side Range & Filter Computations ──
+
+  const { filteredInvoices, activeFilterLabel } = useMemo(() => {
+    const getSessionYear = (s: string) => {
+      const match = s?.match(/^(\d{4})/);
+      return match ? parseInt(match[1], 10) : 0;
+    };
+
+    const getTermWeight = (t: string) => {
+      const val = t?.toLowerCase().trim() || '';
+      if (val.includes('first')) return 1;
+      if (val.includes('second')) return 2;
+      if (val.includes('third')) return 3;
+      return 4;
+    };
+
+    const getScore = (s: string, t: string) => {
+      return getSessionYear(s) * 10 + getTermWeight(t);
+    };
+
+    if (filterMode === 'single') {
+      const filtered = rawInvoices.filter((inv) => {
+        const matchesSession = inv.session === session;
+        const matchesTerm = term === 'All Terms' || inv.term === term;
+        return matchesSession && matchesTerm;
+      });
+      const label = term === 'All Terms' ? `${session} (All Terms)` : `${term} ${session}`;
+      return { filteredInvoices: filtered, activeFilterLabel: label };
+    } else {
+      const startScore = getScore(startSession, startTerm);
+      const endScore = getScore(endSession, endTerm);
+      const minScore = Math.min(startScore, endScore);
+      const maxScore = Math.max(startScore, endScore);
+
+      const filtered = rawInvoices.filter((inv) => {
+        const score = getScore(inv.session, inv.term);
+        return score >= minScore && score <= maxScore;
+      });
+      const label = `Range: ${startTerm} ${startSession} to ${endTerm} ${endSession}`;
+      return { filteredInvoices: filtered, activeFilterLabel: label };
+    }
+  }, [rawInvoices, filterMode, session, term, startSession, startTerm, endSession, endTerm]);
+
+  // Compute final reports metrics from the filtered invoices
+  const { totalDue, totalCollected, collectionRate, byClass, byStudent } = useMemo(() => {
+    const bc = buildClassReport(filteredInvoices, rawStudents);
+    const bs = buildStudentReport(filteredInvoices, rawStudents);
+
+    const tDue = bc.reduce((sum, row) => sum + row.totalDue, 0);
+    const tColl = bc.reduce((sum, row) => sum + row.totalCollected, 0);
+    const rate = calculateCollectionRate(tDue, tColl);
+
+    return {
+      totalDue: tDue,
+      totalCollected: tColl,
+      collectionRate: rate,
+      byClass: bc,
+      byStudent: bs,
+    };
+  }, [filteredInvoices, rawStudents]);
 
   // ── CSV export ─────────────────────────────
 
   function handleExportCSV() {
-    if (!data) return;
-    const csv = studentsToCSV(filteredStudents, { term, session });
+    if (filteredStudents.length === 0) return;
+
+    const csvTerm = filterMode === 'single' ? term : `${startTerm} - ${endTerm}`;
+    const csvSession = filterMode === 'single' ? session : `${startSession} - ${endSession}`;
+
+    const csv = studentsToCSV(filteredStudents, { term: csvTerm, session: csvSession });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
+
     const classSlug = classFilter !== 'all' ? `-${classFilter.replace(/\s+/g, '-').toLowerCase()}` : '';
-    a.download = `outstanding-${term.replace(/\s+/g, '-').toLowerCase()}-${session.replace('/', '-')}${classSlug}.csv`;
+    const termSlug = csvTerm.replace(/\s+/g, '-').toLowerCase();
+    const sessionSlug = csvSession.replace(/\//g, '-').replace(/\s+/g, '');
+
+    a.download = `outstanding-${termSlug}-${sessionSlug}${classSlug}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
 
   // ── Filtered student data ──────────────────
 
-  const filteredStudents = data
-    ? classFilter === 'all'
-      ? data.byStudent
-      : data.byStudent.filter((s) => s.class === classFilter)
-    : [];
+  const filteredStudents = useMemo(() => {
+    return classFilter === 'all'
+      ? byStudent
+      : byStudent.filter((s) => s.class === classFilter);
+  }, [byStudent, classFilter]);
 
   // ── Chart data ─────────────────────────────
 
-  const chartData = data
-    ? data.byClass.map((row) => ({
-        class: row.class,
-        'Total Due': row.totalDue,
-        'Total Collected': row.totalCollected,
-      }))
-    : [];
+  const chartData = useMemo(() => {
+    return byClass.map((row) => ({
+      class: row.class,
+      'Total Due': row.totalDue,
+      'Total Collected': row.totalCollected,
+    }));
+  }, [byClass]);
 
-  // ── Loading state ──────────────────────────
+  // ── Loading State ──────────────────────────
 
-  if ((authLoading || loading) && !data) {
+  if ((authLoading || loading) && rawInvoices.length === 0) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -204,8 +322,6 @@ export default function ReportsPage() {
     );
   }
 
-  // ── Render ─────────────────────────────────
-
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -221,7 +337,7 @@ export default function ReportsPage() {
         <Button
           variant="outline"
           onClick={handleExportCSV}
-          disabled={!data || data.byStudent.length === 0}
+          disabled={filteredStudents.length === 0}
           className="rounded-xl border-slate-200 bg-white hover:bg-slate-50 font-bold text-xs h-10 px-4 gap-2 shadow-sm"
         >
           <Download className="h-4 w-4 text-slate-500" />
@@ -229,37 +345,156 @@ export default function ReportsPage() {
         </Button>
       </div>
 
-      {/* Term / Session Selectors */}
-      <div className="flex flex-wrap items-end gap-4">
-        <div>
-          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-            Term
-          </label>
-          <Select value={term} onValueChange={setTerm}>
-            <SelectTrigger className="w-44 h-10 rounded-xl border-slate-200 bg-white font-semibold text-xs text-slate-800 shadow-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl">
-              {TERMS.map((t) => (
-                <SelectItem key={t} value={t} className="text-xs font-semibold">
-                  {t}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {/* Filter Mode Tabs & Controls */}
+      <div className="space-y-4 rounded-[24px] border border-slate-250/60 bg-[#e2edf8]/10 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          {/* Segmented Mode Button */}
+          <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200/50 w-full sm:w-auto">
+            <button
+              onClick={() => setFilterMode('single')}
+              className={`flex-1 sm:flex-none py-1.5 px-4 text-xs font-bold rounded-lg transition-all ${
+                filterMode === 'single'
+                  ? 'bg-white text-slate-950 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Single Session
+            </button>
+            <button
+              onClick={() => setFilterMode('range')}
+              className={`flex-1 sm:flex-none py-1.5 px-4 text-xs font-bold rounded-lg transition-all ${
+                filterMode === 'range'
+                  ? 'bg-white text-slate-950 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Range Filter
+            </button>
+          </div>
+
+          {/* Active Filter Title */}
+          <div className="text-xs font-bold text-slate-600 bg-slate-100 px-3.5 py-1.5 rounded-xl border border-slate-200/40">
+            Active view: <span className="text-slate-950 font-extrabold">{activeFilterLabel}</span>
+          </div>
         </div>
-        <div>
-          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-            Session
-          </label>
-          <input
-            type="text"
-            value={session}
-            onChange={(e) => setSession(e.target.value)}
-            className="h-10 w-36 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-800 shadow-sm focus:outline-none focus:ring-1 focus:ring-slate-300"
-            placeholder="e.g. 2025/2026"
-          />
-        </div>
+
+        {/* Dynamic Selector Controls */}
+        {filterMode === 'single' ? (
+          <div className="flex flex-wrap gap-4 items-end pt-2">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                Session
+              </label>
+              <Select value={session} onValueChange={setSession}>
+                <SelectTrigger className="w-44 h-10 rounded-xl border-slate-250 bg-white font-semibold text-xs text-slate-800 shadow-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  {sessionsList.map((s) => (
+                    <SelectItem key={s} value={s} className="text-xs font-semibold">
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                Term filter
+              </label>
+              <Select value={term} onValueChange={setTerm}>
+                <SelectTrigger className="w-44 h-10 rounded-xl border-slate-250 bg-white font-semibold text-xs text-slate-800 shadow-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="All Terms" className="text-xs font-semibold">All Terms</SelectItem>
+                  {TERMS.map((t) => (
+                    <SelectItem key={t} value={t} className="text-xs font-semibold">
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2 border-t border-slate-200/50 mt-2">
+            {/* Start point */}
+            <div className="space-y-3">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 bg-slate-100 px-2.5 py-1 rounded-lg">From</span>
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1.5">Session</label>
+                  <Select value={startSession} onValueChange={setStartSession}>
+                    <SelectTrigger className="w-full h-10 rounded-xl border-slate-250 bg-white font-semibold text-xs text-slate-800 shadow-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {sessionsList.map((s) => (
+                        <SelectItem key={s} value={s} className="text-xs font-semibold">
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1.5">Term</label>
+                  <Select value={startTerm} onValueChange={setStartTerm}>
+                    <SelectTrigger className="w-full h-10 rounded-xl border-slate-250 bg-white font-semibold text-xs text-slate-800 shadow-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {TERMS.map((t) => (
+                        <SelectItem key={t} value={t} className="text-xs font-semibold">
+                          {t}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            {/* End point */}
+            <div className="space-y-3">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 bg-slate-100 px-2.5 py-1 rounded-lg">To</span>
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1.5">Session</label>
+                  <Select value={endSession} onValueChange={setEndSession}>
+                    <SelectTrigger className="w-full h-10 rounded-xl border-slate-250 bg-white font-semibold text-xs text-slate-800 shadow-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {sessionsList.map((s) => (
+                        <SelectItem key={s} value={s} className="text-xs font-semibold">
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1.5">Term</label>
+                  <Select value={endTerm} onValueChange={setEndTerm}>
+                    <SelectTrigger className="w-full h-10 rounded-xl border-slate-250 bg-white font-semibold text-xs text-slate-800 shadow-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {TERMS.map((t) => (
+                        <SelectItem key={t} value={t} className="text-xs font-semibold">
+                          {t}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Error state */}
@@ -271,7 +506,7 @@ export default function ReportsPage() {
       )}
 
       {/* Empty state */}
-      {data && data.byClass.length === 0 && !loading && (
+      {byClass.length === 0 && !loading && (
         <div className="flex flex-col items-center justify-center rounded-[28px] border border-dashed border-slate-200 bg-white py-16 px-4 select-none">
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-50 border border-slate-100">
             <FileText className="h-7 w-7 text-slate-400" />
@@ -280,7 +515,7 @@ export default function ReportsPage() {
             No invoices found
           </h3>
           <p className="mt-1 text-[10px] text-slate-500 font-medium text-center">
-            No active invoices found for {term} &middot; {session}.
+            No invoices fit the criteria for <span className="font-bold text-slate-800">{activeFilterLabel}</span>.
           </p>
           <Button
             variant="link"
@@ -293,7 +528,7 @@ export default function ReportsPage() {
       )}
 
       {/* Summary Cards */}
-      {data && data.byClass.length > 0 && (
+      {byClass.length > 0 && (
         <>
           <div className="grid gap-5 sm:grid-cols-3">
             {/* Total Due */}
@@ -305,7 +540,7 @@ export default function ReportsPage() {
               </CardHeader>
               <CardContent className="pb-5 px-5">
                 <p className="text-2xl font-extrabold text-slate-950 font-mono tracking-tight">
-                  {kobotoNaira(data.totalDue)}
+                  {kobotoNaira(totalDue)}
                 </p>
               </CardContent>
             </Card>
@@ -319,7 +554,7 @@ export default function ReportsPage() {
               </CardHeader>
               <CardContent className="pb-5 px-5">
                 <p className="text-2xl font-extrabold text-emerald-600 font-mono tracking-tight">
-                  {kobotoNaira(data.totalCollected)}
+                  {kobotoNaira(totalCollected)}
                 </p>
               </CardContent>
             </Card>
@@ -336,7 +571,7 @@ export default function ReportsPage() {
               </CardHeader>
               <CardContent className="pb-5 px-5">
                 <p className="text-3xl font-black text-white font-mono tracking-tight">
-                  {data.collectionRate}%
+                  {collectionRate}%
                 </p>
               </CardContent>
             </Card>
